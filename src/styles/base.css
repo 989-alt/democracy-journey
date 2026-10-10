@@ -1,0 +1,50 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+/* 폰트: 자체 호스팅 자리 src/assets/fonts/ (T07). 외부 폰트 링크 금지 */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--page);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+}
+
+/* 1024x768 stage, letterbox-scaled. --stage-scale 은 단위 없는 수(main.tsx 가 resize 마다 넣는다) */
+:root { --stage-scale: 1; }
+
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  transform: translate(-50%, -50%) scale(var(--stage-scale));
+  transform-origin: center center;
+  background: var(--background);
+  overflow: hidden;
+}
+
+button, [role="button"] { min-width: var(--tap-min); min-height: var(--tap-min); }
+
+#rotate-notice {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+@media (orientation: portrait) {
+  #rotate-notice { display: flex; }
+  .stage { display: none; }
+}
