@@ -1,0 +1,234 @@
+import { describe, expect, it } from 'vitest';
+import { CONTENT, sceneOrder } from '../content';
+import { rng } from './rng';
+import { reduce } from './reducer';
+import { currentScene, initialState } from './state';
+import type { Action, State } from './state';
+
+const J = CONTENT.judges;
+const at = (id: string, patch: Partial<State> = {}): State => ({
+  ...initialState(1), stage: 'play', sceneIndex: sceneOrder.indexOf(id), ...patch,
+});
+const choose = (s: State, optionId: string, t = 1): State => reduce(s, { type: 'choose', sceneId: currentScene(s).id, optionId, t });
+const polls = (tapped: string[]): Action => ({ type: 'judge', kind: 'poll', answer: { kind: 'poll', tapped }, t: 5 });
+
+describe('진행·시작', () => {
+  it('start: title → play, 시드 저장', () => {
+    const s = reduce(initialState(0), { type: 'start', seed: 42, t: 0 });
+    expect(s).toMatchObject({ stage: 'play', seed: 42, sceneIndex: 0, satStep: 0 });
+  });
+  it('title 장면은 next 로 진행', () => {
+    expect(reduce(at('c1-s01'), { type: 'next', t: 1 }).sceneIndex).toBe(1);
+  });
+  it('story 장면은 next 로 못 넘어가고, judge 장면도 next 로 못 건너뛴다', () => {
+    const s = at('c1-s02');
+    expect(reduce(s, { type: 'next', t: 1 })).toBe(s);
+    const j = at('c1-s08');
+    expect(reduce(j, { type: 'next', t: 1 })).toBe(j);
+  });
+  it('reset: 저장 시드 유지한 채 title 초기 상태', () => {
+    const s = reduce(at('c1-s02', { seed: 9 }), { type: 'reset', t: 1 });
+    expect(s).toEqual(initialState(9));
+  });
+});
+
+describe('수치·선택', () => {
+  it('클램프: 3+1=3, 0-1=0', () => {
+    const up = choose(at('c1-s02', { stats: { join: 3, info: 0, home: 0 } }), 'b'); // join +1
+    expect(up.stats.join).toBe(3);
+    const down = choose(at('c1-s02'), 'a'); // info -1
+    expect(down.stats.info).toBe(0);
+    const normal = choose(at('c1-s02', { stats: { join: 1, info: 0, home: 0 } }), 'b');
+    expect(normal.stats.join).toBe(2);
+  });
+  it('선택 → choice 로그(delta·misconception), 다음 장면으로 이동, 플래그', () => {
+    const s = choose(at('c1-s03'), 'b', 7); // flag asked_why
+    expect(s.flags).toContain('asked_why');
+    expect(s.chosen['c1-s03']).toBe('b');
+    expect(s.sceneIndex).toBe(sceneOrder.indexOf('c1-s04'));
+    expect(s.log).toEqual([{ t: 7, type: 'choice', chapter: 1, scene: 'c1-s03', option: 'b', delta: { info: -1 } }]);
+    expect(choose(at('c1-s02'), 'a').log[0].misconception).toBe('M1');
+  });
+  it('잠긴 선택지는 무시, 로그·상태 변화 없음', () => {
+    const s = at('c2-s03', { stats: { join: 0, info: 1, home: 0 } });
+    expect(choose(s, 'c')).toBe(s);
+    const open = choose(at('c2-s03', { stats: { join: 0, info: 2, home: 0 } }), 'c');
+    expect(open.chosen['c2-s03']).toBe('c');
+  });
+  it('연타: 같은 장면 choice 두 번째는 무시', () => {
+    const s = at('c1-s02');
+    const a = choose(s, 'b');
+    // 같은 장면으로 되돌려 두 번째 디스패치를 시도해도 chosen 이 막는다
+    const again = reduce({ ...a, sceneIndex: s.sceneIndex }, { type: 'choose', sceneId: 'c1-s02', optionId: 'c', t: 2 });
+    expect(again).toEqual({ ...a, sceneIndex: s.sceneIndex });
+    expect(a.log).toHaveLength(1);
+    // 이미 지나간 장면 id 로 보내도 무시
+    expect(reduce(a, { type: 'choose', sceneId: 'c1-s02', optionId: 'c', t: 2 })).toBe(a);
+  });
+  it('없는 선택지·kind 가 맞지 않는 장면은 무시', () => {
+    const s = at('c1-s02');
+    expect(choose(s, 'zzz')).toBe(s);
+    const j = at('c1-s08');
+    expect(reduce(j, { type: 'choose', sceneId: 'c1-s08', optionId: 'a', t: 1 })).toBe(j);
+  });
+  it('culture 장면: choice + culture 로그, correct 는 정답 id 비교', () => {
+    const ok = choose(at('c1-s07'), 'b');
+    expect(ok.log.map((e) => e.type)).toEqual(['choice', 'culture']);
+    expect(ok.log[1]).toMatchObject({ correct: true, scene: 'c1-s07' });
+    expect(choose(at('c1-s07'), 'a').log[1].correct).toBe(false);
+  });
+  it('option.next 는 앞쪽 점프만 허용(사건 순서 고정)', () => {
+    const sc = CONTENT.scenes.find((x) => x.id === 'c1-s02')!;
+    const opt = sc.options[2];
+    try {
+      opt.next = 'c1-s04';
+      expect(choose(at('c1-s02'), 'c').sceneIndex).toBe(sceneOrder.indexOf('c1-s04'));
+      opt.next = 'c1-s01'; // 뒤로 → 무시하고 순서대로
+      expect(choose(at('c1-s02'), 'c').sceneIndex).toBe(sceneOrder.indexOf('c1-s03'));
+    } finally {
+      delete opt.next;
+    }
+  });
+});
+
+describe('장 끝·완주', () => {
+  it('장 마지막 장면을 넘기면 chapter_end + satStep+1', () => {
+    const s = reduce(at('c1-s09'), { type: 'next', t: 3 });
+    expect(s.sceneIndex).toBe(sceneOrder.indexOf('c2-s01'));
+    expect(s.satStep).toBe(1);
+    expect(s.log.map((e) => e.type)).toEqual(['compare_view', 'chapter_end']);
+    expect(s.log[1]).toMatchObject({ chapter: 1, t: 3 });
+  });
+  it('마지막 장면 뒤 stage done, satStep 상한 4', () => {
+    const s = reduce(at('c5-s05', { satStep: 4 }), { type: 'next', t: 3 });
+    expect(s.stage).toBe('done');
+    expect(s.satStep).toBe(4);
+    expect(s.log.slice(-1)[0]).toMatchObject({ type: 'chapter_end', chapter: 5 });
+    expect(reduce(s, { type: 'next', t: 4 })).toBe(s);
+  });
+  it('compare_view 는 번호당 1회만 로그', () => {
+    const once = reduce(at('c1-s09'), { type: 'next', t: 1 });
+    const back = { ...once, stage: 'play' as const, sceneIndex: sceneOrder.indexOf('c1-s09') };
+    const twice = reduce(back, { type: 'next', t: 2 });
+    expect(twice.log.filter((e) => e.type === 'compare_view')).toHaveLength(1);
+  });
+});
+
+describe('판별 액션', () => {
+  const wrong = ['bribe', 'trap_home'];
+  it('정답이어도 오답이어도 stats 불변, 판별 로그는 항목별', () => {
+    const stats = { join: 2, info: 1, home: 3 };
+    const ok = reduce(at('c1-s08', { stats }), polls(['bribe', 'group', 'stack', 'proxy']));
+    expect(ok.stats).toEqual(stats);
+    expect(ok.flags).toContain('knows_poll');
+    expect(ok.retryQueue).toEqual([]);
+    expect(ok.log.filter((e) => e.type === 'judge')).toHaveLength(6);
+    expect(ok.log[0]).toMatchObject({ type: 'judge', kind: 'poll', item: 'bribe', correct: true, attempt: 1, scene: 'c1-s08' });
+    const bad = reduce(at('c1-s08', { stats }), polls(wrong));
+    expect(bad.stats).toEqual(stats);
+    expect(bad.flags).not.toContain('knows_poll');
+    expect(bad.judges.poll?.items).toHaveLength(6);
+    expect(bad.sceneIndex).toBe(sceneOrder.indexOf('c1-s09'));
+  });
+  it('오답 항목만 retryQueue 에 attempts 0 으로 들어간다', () => {
+    const s = reduce(at('c1-s08'), polls(wrong));
+    expect(s.retryQueue.map((q) => q.item).sort()).toEqual(['group', 'proxy', 'stack', 'trap_home']);
+    expect(s.retryQueue.every((q) => q.kind === 'poll' && q.attempts === 0)).toBe(true);
+    expect(s.log.find((e) => e.item === 'trap_home')?.misconception).toBe('M6');
+  });
+  it('같은 kind 두 번째 judge·다른 kind 장면의 judge 는 무시', () => {
+    const s = reduce(at('c1-s08'), polls(wrong));
+    const again = reduce({ ...s, sceneIndex: sceneOrder.indexOf('c1-s08') }, polls(['bribe', 'group', 'stack', 'proxy']));
+    expect(again.log).toEqual(s.log);
+    expect(again.flags).not.toContain('knows_poll');
+    const wrongScene = at('c1-s08');
+    expect(reduce(wrongScene, { type: 'judge', kind: 'appeal', answer: { kind: 'appeal', why: 'concentrated' }, t: 1 })).toBe(wrongScene);
+    const mismatch = at('c1-s08');
+    expect(reduce(mismatch, { type: 'judge', kind: 'poll', answer: { kind: 'appeal', why: 'x' }, t: 1 })).toBe(mismatch);
+  });
+  it('공약 9칸 미완성이면 judge 무시', () => {
+    const s = at('c4-s08');
+    const partial: Action = { type: 'judge', kind: 'pledge', answer: { kind: 'pledge', scores: { p1: [1, 1, 1] }, vote: 'p2' }, t: 1 };
+    expect(reduce(s, partial)).toBe(s);
+    const full = Object.fromEntries(J.pledge.candidates.map((c) => [c.id, [...c.truth] as [number, number, number]]));
+    const r = reduce(s, { type: 'judge', kind: 'pledge', answer: { kind: 'pledge', scores: full, vote: 'p2' }, t: 1 });
+    expect(r.flags).toContain('knows_pledge');
+  });
+});
+
+describe('retry', () => {
+  const failed = () => reduce(at('c1-s08'), polls(wrong2()));
+  function wrong2() { return ['bribe', 'trap_home']; }
+  const retry = (s: State, correct: boolean, item = 'group', t = 9): State =>
+    reduce(s, { type: 'retry', kind: 'poll', item, correct, t });
+
+  it('retry 는 stats·flags 불변', () => {
+    const f = reduce(at('c1-s08', { stats: { join: 2, info: 1, home: 3 } }), polls(wrong2()));
+    const r = retry(retry(f, false), true);
+    expect(r.stats).toEqual(f.stats);
+    expect(r.flags).toEqual(f.flags);
+  });
+  it('retry 는 judges 항목을 최종 attempt 로 갱신(결과 화면용)', () => {
+    const f = failed();
+    expect(f.judges.poll?.items.find((i) => i.item === 'group')).toMatchObject({ correct: false, attempt: 1 });
+    const r = retry(f, true);
+    expect(r.judges.poll?.items.find((i) => i.item === 'group')).toEqual({ item: 'group', correct: true, attempt: 2 });
+    expect(r.judges.poll?.items.find((i) => i.item === 'stack')).toMatchObject({ correct: false, attempt: 1 });
+    const w = retry(f, false, 'trap_home');
+    expect(w.judges.poll?.items.find((i) => i.item === 'trap_home')).toMatchObject({ correct: false, attempt: 2, misconception: 'M6' });
+    expect(retry(w, true, 'trap_home').judges.poll?.items.find((i) => i.item === 'trap_home')).toEqual({ item: 'trap_home', correct: true, attempt: 3 });
+  });
+  it('정답이면 큐에서 제거, 로그에 retry+judge(attempt 2)', () => {
+    const s = retry(failed(), true);
+    expect(s.retryQueue.find((q) => q.item === 'group')).toBeUndefined();
+    const tail = s.log.slice(-2);
+    expect(tail[0]).toMatchObject({ type: 'retry', kind: 'poll', item: 'group', correct: true, attempt: 2 });
+    expect(tail[1]).toMatchObject({ type: 'judge', kind: 'poll', item: 'group', correct: true, attempt: 2 });
+  });
+  it('계속 틀리면 attempt 3 에서 큐 제거 — 최대 3', () => {
+    let s = retry(failed(), false);
+    expect(s.retryQueue.find((q) => q.item === 'group')?.attempts).toBe(1);
+    s = retry(s, false);
+    expect(s.retryQueue.find((q) => q.item === 'group')).toBeUndefined();
+    const attempts = s.log.filter((e) => e.type === 'judge' && e.item === 'group').map((e) => e.attempt);
+    expect(attempts).toEqual([1, 2, 3]);
+    expect(retry(s, false)).toBe(s); // 큐에 없으면 무시
+  });
+  it('다시 틀리면 직전 오개념을 이어받고, 맞히면 오개념 제거', () => {
+    const s = failed();
+    expect(retry(s, false, 'trap_home').log.slice(-1)[0].misconception).toBe('M6');
+    expect(retry(s, true, 'trap_home').log.slice(-1)[0].misconception).toBeUndefined();
+  });
+  it('큐에 없는 항목·title 단계는 무시', () => {
+    const s = failed();
+    expect(retry(s, true, 'bribe')).toBe(s);
+    expect(reduce(initialState(1), { type: 'retry', kind: 'poll', item: 'x', correct: true, t: 1 }).log).toEqual([]);
+  });
+});
+
+describe('결정성', () => {
+  it('같은 시드·같은 입력이면 같은 상태·같은 로그', () => {
+    const run = () => {
+      let s = reduce(initialState(0), { type: 'start', seed: 123, t: 0 });
+      const r = rng(s.seed);
+      let t = 0;
+      for (let i = 0; i < 12 && s.stage === 'play'; i++) {
+        const sc = currentScene(s);
+        if (sc.kind === 'story' || sc.kind === 'culture') {
+          const open = sc.options.filter((o) => !o.lock);
+          s = reduce(s, { type: 'choose', sceneId: sc.id, optionId: open[Math.floor(r() * open.length)].id, t: ++t });
+        } else if (sc.kind !== 'judge') s = reduce(s, { type: 'next', t: ++t });
+      }
+      return s;
+    };
+    expect(run()).toEqual(run());
+    expect(JSON.stringify(run().log)).toBe(JSON.stringify(run().log));
+  });
+  it('rng(mulberry32): 같은 시드 같은 수열, 0~1 범위', () => {
+    const a = rng(5), b = rng(5), c = rng(6);
+    const xs = [a(), a(), a()];
+    expect(xs).toEqual([b(), b(), b()]);
+    expect(xs).not.toEqual([c(), c(), c()]);
+    expect(xs.every((x) => x >= 0 && x < 1)).toBe(true);
+  });
+});
