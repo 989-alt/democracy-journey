@@ -1,3 +1,9 @@
+/* 자체 호스팅 서브셋(KS X 1001 + 콘텐츠 문자). 외부 폰트 요청 금지 */
+@font-face { font-family: 'Gowun Batang'; font-weight: 400; font-style: normal; src: url('../assets/fonts/GowunBatang-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'Gowun Batang'; font-weight: 700; font-style: normal; src: url('../assets/fonts/GowunBatang-Bold.woff2') format('woff2'); }
+@font-face { font-family: 'Gowun Dodum'; font-weight: 400; font-style: normal; src: url('../assets/fonts/GowunDodum-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'Nanum Pen Script'; font-weight: 400; font-style: normal; src: url('../assets/fonts/NanumPenScript-Regular.woff2') format('woff2'); }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 /* 폰트: 자체 호스팅 자리 src/assets/fonts/ (T07). 외부 폰트 링크 금지 */
