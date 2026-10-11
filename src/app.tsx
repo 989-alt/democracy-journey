@@ -16,6 +16,7 @@ import { Retry } from './ui/judge/Retry';
 import { Source } from './ui/judge/Source';
 import type { JudgeProps } from './ui/judge/drag';
 import { Mute } from './ui/Mute';
+import { Result } from './ui/Result';
 import { faceFor } from './ui/Portrait';
 import { Scene } from './ui/Scene';
 import { Title } from './ui/Title';
@@ -135,7 +136,7 @@ export function App() {
       />
     );
   } else if (state.stage === 'done') {
-    screen = <div class="placeholder">결과 화면(T06)</div>;
+    screen = <Result state={state} dispatch={dispatch} />;
   } else if (sc.kind === 'story' || sc.kind === 'culture') {
     screen = <Scene scene={sc} state={state} face={face} picked={picked} onChoose={choose} onConfirm={confirm} />;
   } else if (sc.kind === 'title') {

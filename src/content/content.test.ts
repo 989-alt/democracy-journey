@@ -403,11 +403,11 @@ describe('연표·문구', () => {
     ['3·15 부정 선거', '4·19 혁명', '5·16 군사 정변', '5·18 민주화 운동', '6월 민주 항쟁'].forEach((l) => expect(labels).toContain(l));
     expect(labels).not.toContain('헌법 개정, 긴 집권');
     expect(timeline.some((e) => e.year === 1972)).toBe(false);
-    expect(timeline.length).toBe(8);
+    expect(timeline.length).toBe(10);
     const years = timeline.filter((e) => e.year !== undefined).map((e) => e.year as number);
     expect(years).toEqual([...years].sort((a, b) => a - b));
     expect(timeline[timeline.length - 1]).toEqual({ label: '오늘', chapter: 5 });
-    expect(labels.indexOf('3·15 부정 선거')).toBeLessThan(labels.indexOf('4·19 혁명'));
+    expect(labels.slice(0, 4)).toEqual(['3·15 부정 선거', '김주열 학생 발견', '4·19 혁명', '이승만 대통령 하야']);
   });
   it('UI 문구·다짐 5줄', () => {
     ['start', 'resume', 'next', 'finishJudge', 'vote', 'restart'].forEach((k) => expect((copy.ui as Record<string, unknown>)[k]).toBeTruthy());
