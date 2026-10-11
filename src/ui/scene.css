@@ -10,8 +10,8 @@ img.ic{width:22px;height:22px;object-fit:contain;flex:none;display:inline-block;
 .card .n{font-family:var(--font-display);font-size:var(--text-sm);color:var(--muted-foreground);line-height:1}
 .card .t{flex:1}
 .card .st{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);align-self:flex-end;line-height:1}
-.card .st.join{color:var(--stat-join)} .card .st.info{color:var(--stat-info)} .card .st.home{color:var(--stat-home)}
-.card .lk{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--stat-info);line-height:1}
+.card .st{color:var(--foreground)} /* 글자는 잉크(대비), 수치 구분은 아이콘이 한다 — QA r1 #4 같은 패턴 */
+.card .lk{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--foreground);line-height:1}
 
 /* 버튼 */
 .btn{position:relative;display:inline-block;height:56px;min-width:160px;padding:0 24px;border:28px solid transparent;border-image:var(--img-btn-cloth) 95 fill / 28px stretch;cursor:pointer;background:none;font:inherit;color:var(--primary-foreground)}
@@ -42,7 +42,7 @@ img.ic{width:22px;height:22px;object-fit:contain;flex:none;display:inline-block;
 .gauge .cells{display:flex;gap:4px}
 .gauge .cell{width:22px;height:14px;border:2px solid currentColor;border-radius:var(--radius-sm);display:block;background:var(--muted)}
 .gauge .cell.on{background:currentColor}
-.gauge.join{color:var(--stat-join)} .gauge.info{color:var(--stat-info)} .gauge.home{color:var(--stat-home)}
+.gauge.join{color:var(--stat-join)} .gauge.info{color:var(--stat-info)} .gauge.home{color:var(--stat-home)} .gauge>span{color:var(--foreground)} /* 칸 색은 수치색(비글자 3:1 충족), 라벨 글자는 잉크 */
 
 /* 첫 조작 화살표 */
 .arrow{position:absolute;left:50%;top:-44px;transform:translateX(-50%);width:36px;height:36px;background:var(--img-arrow) center/contain no-repeat;animation:bob 1s infinite alternate;pointer-events:none}
