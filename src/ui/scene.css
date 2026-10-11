@@ -1,0 +1,85 @@
+/* 장면 UI — 9-slice 수치는 시안/democracy-journey/2-수채-kit.css 그대로. 이미지는 app.tsx 가 --img-* 로 내려준다. */
+img.ic{width:22px;height:22px;object-fit:contain;flex:none;display:inline-block;vertical-align:middle}
+.art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;filter:saturate(var(--sat-step));transition:filter 1.5s}
+.stage button:focus-visible{outline:3px solid var(--ring);outline-offset:3px}
+
+/* 카드 */
+.card{position:relative;border:35px solid transparent;border-image:var(--img-card) 70 fill / 35px round;min-height:150px;background:none;color:var(--card-foreground);font:inherit;font-size:var(--text-base);text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:var(--space-2);padding:0;margin:0}
+.card:active{border-image-source:var(--img-card-pressed)}
+.card[aria-disabled="true"]{border-image-source:var(--img-card-locked);color:var(--judge-locked-foreground);cursor:not-allowed}
+.card .n{font-family:var(--font-display);font-size:var(--text-sm);color:var(--muted-foreground);line-height:1}
+.card .t{flex:1}
+.card .st{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);align-self:flex-end;line-height:1}
+.card .st.join{color:var(--stat-join)} .card .st.info{color:var(--stat-info)} .card .st.home{color:var(--stat-home)}
+.card .lk{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--stat-info);line-height:1}
+
+/* 버튼 */
+.btn{position:relative;display:inline-block;height:56px;min-width:160px;padding:0 24px;border:28px solid transparent;border-image:var(--img-btn-cloth) 95 fill / 28px stretch;cursor:pointer;background:none;font:inherit;color:var(--primary-foreground)}
+.btn>span{position:absolute;left:0;right:0;top:0;transform:translateY(-50%);text-align:center;white-space:nowrap;font:400 var(--text-base)/1 var(--font-display)}
+.btn.paper{height:48px;border:24px solid transparent;border-image:var(--img-btn-paper) 90 fill / 24px stretch;color:var(--foreground)}
+.btn.paper>span{font:400 var(--text-sm)/1 var(--font-body)}
+
+/* 대사 패널 */
+.dialog{position:absolute;left:300px;right:var(--space-5);bottom:214px;z-index:2;border-style:solid;border-color:transparent;border-width:45px 45px 40px 180px;border-image:var(--img-dialog) 90 90 80 360 fill / 45px 45px 40px 180px stretch;color:var(--popover-foreground);min-height:130px}
+.dialog .who{position:absolute;left:-138px;top:-27px;width:158px;text-align:center;font:400 var(--text-sm)/1 var(--font-display);color:var(--foreground);transform:translateY(-50%)}
+.dialog p,.card .t{word-break:keep-all}
+.dialog p{margin:0;font-size:var(--text-base);line-height:1.5}
+
+/* 상단 띠 */
+.topbar{position:absolute;left:var(--space-5);right:var(--space-5);top:var(--space-4);z-index:3;border:20px solid transparent;border-image:var(--img-topbar) 40 fill / 20px stretch;display:flex;align-items:center;gap:var(--space-6);min-height:64px}
+.topbar .chapter{font-family:var(--font-display);font-size:var(--text-lg);line-height:1}
+.topbar .sp{flex:1}
+
+/* 초상 */
+.portrait{position:absolute;left:var(--space-5);bottom:214px;width:var(--portrait-w);height:290px;z-index:2;border:26px solid transparent;border-image:var(--img-portrait) 75 fill / 26px stretch;background:none;overflow:visible}
+.portrait>img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(var(--sat-step));transition:filter 1.5s}
+
+/* 카드 줄 */
+.cards{position:absolute;left:var(--space-5);right:var(--space-5);bottom:var(--space-5);display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);z-index:2}
+
+/* 게이지 */
+.gauge{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);line-height:1}
+.gauge .cells{display:flex;gap:4px}
+.gauge .cell{width:22px;height:14px;border:2px solid currentColor;border-radius:var(--radius-sm);display:block;background:var(--muted)}
+.gauge .cell.on{background:currentColor}
+.gauge.join{color:var(--stat-join)} .gauge.info{color:var(--stat-info)} .gauge.home{color:var(--stat-home)}
+
+/* 첫 조작 화살표 */
+.arrow{position:absolute;left:50%;top:-44px;transform:translateX(-50%);width:36px;height:36px;background:var(--img-arrow) center/contain no-repeat;animation:bob 1s infinite alternate;pointer-events:none}
+@keyframes bob{to{transform:translate(-50%,6px)}}
+
+/* 타이틀 */
+.title-sepia{filter:saturate(var(--sat-0));-webkit-mask-image:linear-gradient(to right,black 55%,transparent 80%);mask-image:linear-gradient(to right,black 55%,transparent 80%);transition:none}
+.title-art{transition:none;filter:none}
+/* 킷 카드 9-slice 위에 얹는다 */
+.title-box{position:absolute;left:var(--space-8);bottom:var(--space-8);z-index:2;border:35px solid transparent;border-image:var(--img-card) 70 fill / 35px round;padding:var(--space-2) var(--space-4)}
+.title-box h1{margin:0 0 var(--space-4);font-family:var(--font-display);font-size:var(--text-3xl);font-weight:400;line-height:var(--leading-tight)}
+.title-btns{display:flex;gap:var(--space-4);align-items:center}
+
+/* 장 타이틀 */
+.chtitle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;border:35px solid transparent;border-image:var(--img-card) 70 fill / 35px round;padding:var(--space-4) var(--space-8);max-width:760px}
+.chtitle h1{margin:0;font-family:var(--font-display);font-size:var(--text-2xl);font-weight:400}
+.chtitle p{margin:var(--space-3) 0 0;font-size:var(--text-base)}
+
+/* 임시 화면 */
+.placeholder{position:absolute;inset:0;display:flex;flex-direction:column;gap:var(--space-5);align-items:center;justify-content:center;font-size:var(--text-lg);color:var(--foreground)}
+
+/* 음소거 / 토스트 */
+.mute{position:absolute;right:var(--space-5);top:88px;z-index:4}
+.mute .btn{min-width:140px;font:400 var(--text-sm)/0 var(--font-body);text-align:center;white-space:nowrap;padding:0}
+/* note-pin 이미지 위에 손글씨 */
+.toast{position:absolute;left:50%;top:var(--space-4);transform:translateX(-50%);z-index:5;width:220px;height:100px;display:grid;place-items:center;background:var(--img-note) center/100% 100% no-repeat;font:400 var(--text-xl)/1 var(--font-hand);color:var(--foreground);pointer-events:none;opacity:0;transition:none}
+.toast.on{opacity:1}
+
+@media (prefers-reduced-motion: reduce){
+  .arrow{animation:none}
+  .art,.portrait>img{transition:none}
+}
+
+/* 생활 문화 까닭 메모 (R19) — 납작한 막 없이 note-pin 메모만 카드 줄 가운데에. 카드는 클릭 통과 */
+.culture-pick{position:absolute;left:var(--space-5);right:var(--space-5);bottom:var(--space-5);height:150px;z-index:3;display:grid;place-items:center;pointer-events:none}
+.note{position:relative;width:640px;height:170px;background:var(--img-note) center/100% 100% no-repeat}
+.note>span{position:absolute;left:56px;right:230px;top:50%;transform:translateY(-50%);text-align:left;font:400 28px/1.3 var(--font-hand);word-break:keep-all}
+.note>.btn{position:absolute;right:56px;top:50%;margin-top:-28px;pointer-events:auto}
+.card.picked{outline:3px solid var(--ring);outline-offset:3px}
+.card.dim{opacity:.5}
