@@ -1,11 +1,20 @@
 import { useEffect, useReducer, useRef, useState } from 'preact/hooks';
 import { ICON, UI } from './assets';
 import { sfx, unlock, playBgm } from './audio/audio';
-import type { Face, Option } from './content/types';
+import type { Face, JudgeKind, Option } from './content/types';
 import { reduce } from './engine/reducer';
 import { load, save } from './engine/save';
 import { currentScene, initialState, isLocked } from './engine/state';
+import type { JudgeAnswer } from './engine/state';
 import { ChapterTitle } from './ui/ChapterTitle';
+import { Appeal } from './ui/judge/Appeal';
+import { Compare } from './ui/judge/Compare';
+import { Organ } from './ui/judge/Organ';
+import { Pledge } from './ui/judge/Pledge';
+import { Poll } from './ui/judge/Poll';
+import { Retry } from './ui/judge/Retry';
+import { Source } from './ui/judge/Source';
+import type { JudgeProps } from './ui/judge/drag';
 import { Mute } from './ui/Mute';
 import { faceFor } from './ui/Portrait';
 import { Scene } from './ui/Scene';
@@ -26,8 +35,11 @@ const IMG_VARS = {
   '--img-topbar': `url(${UI['topbar-strip']})`,
   '--img-portrait': `url(${UI['portrait-frame']})`,
   '--img-note': `url(${UI['note-pin']})`,
+  '--img-tag': `url(${UI['tag-apricot']})`,
   '--img-arrow': `url(${ICON.arrow})`,
 };
+
+const JUDGE_SCREEN: Record<JudgeKind, (p: JudgeProps) => preact.JSX.Element> = { poll: Poll, appeal: Appeal, source: Source, pledge: Pledge, organ: Organ };
 
 export function App() {
   // 저장본이 있어도 항상 title 에서 시작한다 → '이어하기' 버튼이 restore 를 보낸다.
@@ -100,6 +112,11 @@ export function App() {
       } else if (e.key === 'Enter' && picked && sc.kind === 'culture') {
         e.preventDefault();
         confirm();
+      } else if (e.key === 'Enter' && (sc.kind === 'judge' || sc.kind === 'compare' || sc.kind === 'retry')) {
+        // 판별·비교·다시 보기: Enter = 화면의 주 버튼(data-primary). 버튼·체크박스 위의 Enter 는 그 요소가 처리한다.
+        if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement) return;
+        const b = document.querySelector<HTMLButtonElement>('.stage [data-primary]:not([disabled]):not([aria-disabled="true"])');
+        if (b) { e.preventDefault(); b.click(); }
       } else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
         next();
       }
@@ -123,13 +140,17 @@ export function App() {
     screen = <Scene scene={sc} state={state} face={face} picked={picked} onChoose={choose} onConfirm={confirm} />;
   } else if (sc.kind === 'title') {
     screen = <ChapterTitle scene={sc} onDone={next} />;
+  } else if (sc.kind === 'judge' && sc.judge) {
+    // 리듀서는 judge 액션에서 곧바로 다음 장면으로 넘어간다 → 화면이 피드백 메모를 먼저 보여 주고 '다음' 에서 이 콜백을 부른다.
+    const Judge = JUDGE_SCREEN[sc.judge];
+    const kind = sc.judge;
+    screen = <Judge key={sc.id} scene={sc} onJudge={(answer: JudgeAnswer) => dispatch({ type: 'judge', kind, answer, t: Date.now() })} />;
+  } else if (sc.kind === 'compare') {
+    screen = <Compare key={sc.id} scene={sc} onNext={next} />;
+  } else if (sc.kind === 'retry') {
+    screen = <Retry key={sc.id} scene={sc} state={state} onRetry={(kind, item, correct) => dispatch({ type: 'retry', kind, item, correct, t: Date.now() })} onNext={next} />;
   } else {
-    screen = (
-      <div class="placeholder">
-        (T05) {sc.kind}
-        <button type="button" class="btn" onClick={next}><span>다음</span></button>
-      </div>
-    );
+    screen = <div class="placeholder">{sc.kind}</div>;
   }
 
   return (

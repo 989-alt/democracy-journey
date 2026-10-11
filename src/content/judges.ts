@@ -43,7 +43,7 @@ export const judges: Judges = {
     cards: [
       {
         id: 'radio',
-        source: '라디오 방송',
+        source: '라디오',
         date: '1980년 5월',
         text: '"광주에서 폭도들이 소동을 벌이고 있습니다. 곧 진정될 것입니다."',
         answerChecks: [false, false, false, false],
@@ -52,7 +52,7 @@ export const judges: Judges = {
       },
       {
         id: 'letter',
-        source: '광주 친척이 보낸 편지',
+        source: '친척 편지',
         date: '1980년 5월 말',
         text: '"이모가 씁니다. 우리 동네에서 일어난 일을 직접 보고 적어요. 길이 막혀 소식 전하기가 어렵습니다."',
         answerChecks: [false, true, true, false],
@@ -61,7 +61,7 @@ export const judges: Judges = {
       },
       {
         id: 'photo',
-        source: '외국 기자의 사진과 취재 기록',
+        source: '외신 기자 기록',
         date: '1980년 5월',
         text: '기자 이름, 찍은 날짜와 장소가 적힌 사진과 취재 기록이에요.',
         answerChecks: [false, true, true, true],

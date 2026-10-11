@@ -1,0 +1,170 @@
+/* 판별·비교·다시 보기 — 상자는 전부 킷 이미지(--img-*), 색은 토큰만. scene.css 의 .card .btn .dialog .topbar 를 그대로 쓴다. */
+
+/* 공용 ─────────────────────────────────────────────── */
+.jtop{z-index:3;padding-right:150px}
+.stage:has(.jtop) .mute{top:20px;right:32px;z-index:6}
+.jtop .task{font:400 var(--text-lg)/1.3 var(--font-display)}
+.jbody{position:absolute;left:var(--space-5);right:var(--space-5);top:92px;bottom:16px;z-index:2}
+.jcol{display:flex;flex-direction:column;gap:var(--space-4)}
+.card.jcard{border-width:28px;border-image:var(--img-card) 70 fill / 28px round;min-height:0;gap:6px}
+.card.jcard.rule,.card.jcard.ofeed,.card.jcard.zone,.card.jcard.ptable,.card.jcard.tray,.card.jcard.ctext,.rbody .card.jcard.rq,.card.jcard.fside{border-image-repeat:stretch}
+.card.jcard.picked{outline:3px solid var(--ring);outline-offset:3px}
+.card.jcard.dim{opacity:.5}
+.card.jcard.flip{border-image-source:var(--img-card-pressed)}
+.card.jcard .t{font-size:var(--text-base);line-height:1.4}
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.55;filter:grayscale(.6);cursor:not-allowed}
+.btn[data-primary]{z-index:3}
+img.ic.s{width:18px;height:18px;margin-right:4px}
+img.ic.big{width:40px;height:40px}
+
+/* 종이 태그(kit tag-apricot 376×175) — 글자 86px 폭, 15px, 2줄 */
+.tag{position:relative;display:inline-block;width:134px;height:62px;background:var(--img-tag) left center/contain no-repeat;flex:none}
+.tag>span{position:absolute;left:8px;width:80px;top:50%;transform:translateY(-50%);text-align:center;font:400 15px/1.15 var(--font-body);word-break:keep-all}
+
+/* 피드백(R24) — 내용을 덮지 않고 제 자리에 붙는다 ───────────── */
+.fl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3);font-size:var(--text-sm);line-height:1.4;word-break:keep-all;min-height:0}
+.fl li{display:flex;gap:8px;align-items:flex-start}
+.fl li .ic{margin-top:2px}
+.fl b{font-family:var(--font-display);font-weight:400}
+.fside .fl b{display:block}
+/* 옆 패널: 규칙 패널 자리 */
+.card.fside{justify-content:flex-start;cursor:default;gap:var(--space-3)}
+.fside .fl{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.fside .btn{flex:none;width:100%}
+/* 아래 패널: 아래 띠가 위로 자란 종이 */
+.fb.bottom{position:absolute;left:12px;right:12px;bottom:4px;z-index:4;max-height:40%;border:20px solid transparent;border-image:var(--img-topbar) 40 fill / 20px stretch;display:grid;grid-template-columns:1fr auto;gap:var(--space-3);align-items:center;padding:6px 8px}
+.fb.bottom .fl{overflow-y:auto;font-size:var(--text-base);max-height:240px}
+.fb.bottom .btn{flex:none}
+.fb.bottom.poll .fl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2) var(--space-5);font-size:var(--text-sm);line-height:1.35;max-height:210px}
+.fb.bottom.poll .ft{display:flex;align-items:center;gap:6px;font:400 var(--text-sm)/1.3 var(--font-display);padding-right:240px}
+.fb.bottom.poll .btn{width:160px}
+/* 표 카드 맨 아래 한 줄 */
+.fb.row{grid-column:1/-1;display:flex;align-items:center;gap:var(--space-4);min-height:56px}
+.fb.row .fl{flex:1;font-size:var(--text-sm)}
+.ptab .fb.row .btn{flex:none;width:auto;min-width:160px}
+
+/* ① 투표소 ─────────────────────────────────────────── */
+.pfield{position:absolute;left:0;top:0;width:var(--stage-w);aspect-ratio:3/2;z-index:1}
+.pfield>img{display:block;width:100%;height:100%;filter:saturate(var(--sat-step));transition:filter 1.5s}
+.spot{position:absolute;padding:0;border:0;background:none;cursor:pointer;min-width:44px;min-height:44px}
+.spot:disabled{cursor:default}
+.spot.on{outline:3px dashed var(--ring);outline-offset:-4px}
+.spot .mk{position:absolute;left:50%;top:50%;width:64px;height:64px;transform:translate(-50%,-50%);pointer-events:none}
+.pbar{position:absolute;left:12px;right:12px;bottom:4px;z-index:3;height:80px;border:20px solid transparent;border-image:var(--img-topbar) 40 fill / 20px stretch;display:flex;align-items:center;gap:var(--space-4)}
+.pbar .task{flex:1;word-break:keep-all;font:400 var(--text-base)/1.3 var(--font-display)}
+.pbar .cnt{display:inline-flex;align-items:center;gap:6px;font:400 var(--text-base)/1 var(--font-display);padding-right:176px}
+.pbar .btn{width:160px}
+/* 음소거는 띠 안(카운터 오른쪽, 버튼 왼쪽)에 둔다 */
+.stage:has(.pbar) .mute,.stage:has(.fb.poll) .mute{top:auto;bottom:16px;right:204px;z-index:6}
+
+/* ② 호소처 ─────────────────────────────────────────── */
+.dialog.jdlg{position:relative;left:auto;right:auto;top:auto;bottom:auto;flex:none;min-height:110px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);flex:none;height:210px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);flex:none;height:160px}
+.flipcard{align-items:center;justify-content:center;text-align:center}
+.flipcard .big{width:56px;height:56px;object-fit:contain}
+.flipcard .ft{display:inline-flex;align-items:center;gap:6px;font:400 var(--text-lg)/1 var(--font-display)}
+.flipcard.flip{align-items:flex-start;justify-content:flex-start;text-align:left}
+.flipcard.flip .ft{font-size:var(--text-base)}
+.flipcard.flip .t{font-size:18px;line-height:1.4}
+
+/* ③ 정보 카드 ───────────────────────────────────────── */
+.sgrid{display:grid;grid-template-columns:1fr 1fr 280px;grid-template-rows:1fr 1fr;gap:var(--space-4)}
+.card.icard{display:flex;flex-direction:column;gap:4px;justify-content:space-between;cursor:default;border-width:22px;border-image-width:22px;padding-top:34px}
+.icard .tag{position:absolute;left:-10px;top:-30px;z-index:2}
+.icard .txt{font-size:18px;line-height:1.4;flex:1;word-break:keep-all}
+.icard .txt b{font-family:var(--font-display);font-weight:400}
+.icard .crit{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;font-size:var(--text-sm);line-height:1.2}
+.icard .crit label{display:flex;align-items:center;gap:6px;min-height:44px;white-space:nowrap;cursor:pointer}
+.icard .crit input{width:22px;height:22px;margin:0;accent-color:var(--primary);flex:none}
+.trust{display:flex;gap:6px;flex:none}
+.trust .btn.paper{flex:1;min-width:0;padding:0;height:44px;min-height:44px;border-width:22px;border-image-width:22px}
+.trust .btn.paper>span{display:flex;align-items:center;justify-content:center}
+.trust .lo>span{color:var(--trust-low)} .trust .mi>span{color:var(--trust-mid)} .trust .hi>span{color:var(--trust-high)}
+.btn.paper.on{filter:brightness(.93)}
+.btn.paper.on::after{content:"";position:absolute;inset:-24px;border-radius:30px;box-shadow:inset 0 0 0 3px var(--accent);pointer-events:none}
+.card.rule{grid-row:1/3;grid-column:3;justify-content:flex-start;cursor:default}
+.rule h3{margin:0 0 var(--space-2);font:400 var(--text-lg)/1.2 var(--font-display)}
+.rule ol{margin:0;padding-left:22px;font-size:18px;line-height:1.4;word-break:keep-all}
+.rule ol li{margin-bottom:8px}
+.rule .cite{font-size:var(--text-sm);color:var(--muted-foreground);margin:var(--space-2) 0 0}
+.rule .btn{display:block;width:100%;margin-top:auto}
+.rule .btn>span{font-size:var(--text-base)}
+.card.fside.rule{grid-row:1/3;grid-column:3}
+
+/* ④ 공약 채점표 ─────────────────────────────────────── */
+.pgrid{display:flex;flex-direction:column;gap:var(--space-3)}
+.pcands{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);flex:none}
+.card.pcand{cursor:default;justify-content:flex-start;gap:var(--space-2);border-width:24px;border-image-width:24px}
+.pcand h3{margin:0;font:400 var(--text-lg)/1 var(--font-display)}
+.pcand ul{margin:0;padding-left:18px;font-size:18px;line-height:1.4;word-break:keep-all}
+.pcand li{margin-bottom:2px}
+.card.ptable{flex:1;cursor:default;justify-content:flex-start;border-width:24px;border-image-width:24px}
+.ptab{display:grid;grid-template-columns:128px repeat(3,1fr);column-gap:var(--space-3);row-gap:4px;align-items:center}
+.plab{font:400 var(--text-sm)/1.25 var(--font-display);word-break:keep-all;color:var(--foreground)}
+.plab.nm{text-align:center;font-size:var(--text-base)}
+.step{display:flex;align-items:center;justify-content:center;gap:var(--space-3)}
+.step .btn.paper{min-width:0;width:48px;padding:0;min-height:44px;height:44px;border-width:22px;border-image-width:22px}
+.step .btn.paper>span{font-size:var(--text-lg);font-family:var(--font-display)}
+.step .val{min-width:40px;text-align:center;font:400 var(--text-xl)/1 var(--font-display);color:var(--foreground)}
+.psum{text-align:center;font:400 var(--text-base)/1 var(--font-display)}
+.psum b{font-size:var(--text-xl);font-weight:400;margin-right:2px}
+.ptab .btn{min-width:0;width:100%}
+
+/* ⑤ 기관 카드 ───────────────────────────────────────── */
+.organ-drag{display:grid;grid-template-columns:1fr 250px;gap:var(--space-4);touch-action:none;user-select:none;-webkit-user-select:none}
+.organ-drag *{touch-action:none}
+.oleft{display:flex;flex-direction:column;gap:var(--space-3);min-width:0}
+.zones{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);flex:none}
+.card.zone{min-height:376px;justify-content:flex-start;cursor:pointer;gap:var(--space-2);border-width:24px;border-image-width:24px;text-align:center}
+.zone.ready{outline:3px dashed var(--ring);outline-offset:3px}
+.zone .zh{display:flex;align-items:center;justify-content:center;gap:var(--space-2);font:400 var(--text-lg)/1 var(--font-display)}
+.zone .pl{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.card.tray{flex:1;border-image-source:var(--img-card-pressed);cursor:default;flex-direction:row;flex-wrap:wrap;align-content:flex-start;justify-content:flex-start;gap:var(--space-2);border-width:24px;border-image-width:24px}
+.chip{position:relative;display:inline-block;width:152px;height:48px;min-width:0;min-height:48px;padding:0;margin:0;border:24px solid transparent;border-image:var(--img-btn-paper) 90 fill / 24px stretch;background:none;cursor:grab;font:inherit;color:var(--foreground);flex:none}
+.chip.wide{width:268px}
+.chip.ph{width:100%;cursor:inherit}
+.chip .cl{position:absolute;left:0;right:0;top:0;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;font:400 var(--text-sm)/1 var(--font-body)}
+.chip .oi{width:30px;height:26px;object-fit:contain;flex:none}
+.chip.chk .cl{white-space:normal;line-height:1.15;gap:4px}
+.chip.chk .oi{width:24px}
+.chip.chk .tx{text-align:left;font-size:15px}
+.chip.sel{outline:3px solid var(--ring);outline-offset:2px}
+.chip.drag{z-index:30;cursor:grabbing;filter:drop-shadow(0 6px 8px var(--muted-foreground))}
+.chip.bounce{animation:bounce .4s}
+@keyframes bounce{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
+.card.ofeed{cursor:default;justify-content:flex-start;gap:var(--space-2)}
+.ofeed h3{margin:0;font:400 var(--text-lg)/1.2 var(--font-display)}
+.ofeed .cnt{margin:0;font:400 var(--text-xl)/1 var(--font-display)}
+.ofeed ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3);font-size:18px;line-height:1.4;word-break:keep-all}
+.ofeed li{display:flex;gap:6px;align-items:flex-start}
+.ofeed li .ic{margin-top:2px}
+.ofeed li b{font-family:var(--font-display);font-weight:400}
+.ofeed.fside .fl{font-size:var(--text-sm)}
+
+/* 비교 카드 ─────────────────────────────────────────── */
+.cmp{top:92px;bottom:92px;display:grid;grid-template-columns:380px 3px 1fr;column-gap:var(--space-4)}
+.side{position:relative;display:flex;flex-direction:column;gap:var(--space-2);min-height:0}
+.side .tag{position:absolute;left:0;top:0;z-index:2}
+.frame{align-self:center;width:250px;height:250px;border:26px solid transparent;border-image:var(--img-portrait) 75 fill / 26px stretch;flex:none}
+.frame>img{display:block;width:100%;height:100%;object-fit:cover}
+.card.ctext{flex:1;cursor:default;justify-content:flex-start;gap:8px}
+.ctext p{margin:0;font-size:18px;line-height:1.4;word-break:keep-all}
+.ink{display:block;border-left:3px solid var(--foreground);border-radius:var(--radius-sm);opacity:.7}
+.btn.cnext{position:absolute;right:var(--space-5);bottom:var(--space-5);z-index:3}
+
+/* 다시 보기 ─────────────────────────────────────────── */
+.rbody{display:flex;flex-direction:column;align-items:center;gap:var(--space-3)}
+.rbody .card.rq{width:100%;cursor:default}
+.rbody .rq p{margin:0;font-size:var(--text-base);line-height:1.45;word-break:keep-all}
+.rbody .grid3{width:100%}
+.rbody .two{display:flex;gap:var(--space-4);justify-content:center}
+.rbody .frame.crop{align-self:center;overflow:hidden;padding:0}
+.rbody .frame.crop>div{width:100%;height:100%;background-repeat:no-repeat}
+.rsrc{width:340px;height:336px;display:flex;margin-top:30px}
+.rsrc .icard{flex:1}
+
+@media (prefers-reduced-motion: reduce){
+  .chip.bounce{animation:none}
+  .pfield>img{transition:none}
+}
