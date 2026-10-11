@@ -9,6 +9,13 @@ import { Feedback, JudgeFrame, useVerdictSfx } from './shared';
 import './judge.css';
 
 export type Trust = 'low' | 'mid' | 'high';
+
+// 판별③ 카드 피드백(QA r1 #3): 오개념 교정 또는 카드 해설 + 오답이면 어긋난 기준 이름.
+export function sourceFeedback(card: SourceCardT, it: { correct: boolean; misconception?: string; miss?: number[] } | undefined): string {
+  const base = (it?.misconception && COPY.feedback[it.misconception]) || card.feedback;
+  const miss = it && !it.correct && it.miss?.length ? it.miss.map((i) => COPY.ui.sourceChecks[i]).filter(Boolean) : [];
+  return miss.length ? `${base} ${COPY.ui.recheck(miss)}` : base;
+}
 export const TRUST: [Trust, string, string][] = [['low', 'lo', COPY.ui.trust.low], ['mid', 'mi', COPY.ui.trust.mid], ['high', 'hi', COPY.ui.trust.high]];
 
 // 정보 카드 1장: 출처 태그(카드 윗단에 걸침), 본문, 기준 체크 4개, 신뢰도 3단계. 다시 보기(Retry)도 같은 카드를 쓴다.
@@ -80,7 +87,7 @@ export function Source({ scene, result, onJudge, onNext }: JudgeProps) {
             className="rule"
             items={cards.map((c) => {
               const it = result.items.find((i) => i.item === c.id);
-              return { ok: it?.correct === true, label: c.source, text: (it?.misconception && COPY.feedback[it.misconception]) || c.feedback };
+              return { ok: it?.correct === true, label: c.source, text: sourceFeedback(c, it) };
             })}
             onNext={onNext}
           />

@@ -45,6 +45,20 @@ describe('save/load', () => {
     expect(bad({ flags: undefined })).toBeNull();
     expect(bad({ satStep: 7 })).toBeNull();
   });
+  it('judges 내부 손상 폐기(QA r1 #1): items null·kind 불일치·항목 필드 누락·모르는 키, chosen 값 비문자열', () => {
+    const s = played();
+    const bad = (patch: object) => { ls.setItem(SAVE_KEY, JSON.stringify({ ...s, ...patch })); return load(); };
+    const okItem = { item: 'why', correct: true, attempt: 1 };
+    expect(bad({ judges: { poll: { kind: 'poll', items: null } } })).toBeNull();
+    expect(bad({ judges: { poll: { kind: 'appeal', items: [] } } })).toBeNull();
+    expect(bad({ judges: { appeal: { kind: 'appeal', items: [{ item: 'why', correct: 'yes', attempt: 1 }] } } })).toBeNull();
+    expect(bad({ judges: { appeal: { kind: 'appeal', items: [{ item: 'why', correct: true }] } } })).toBeNull();
+    expect(bad({ judges: { appeal: { kind: 'appeal', items: [null] } } })).toBeNull();
+    expect(bad({ judges: { bogus: { kind: 'bogus', items: [] } } })).toBeNull();
+    expect(bad({ judges: { source: { kind: 'source', items: [{ item: 'radio', correct: false, attempt: 1, miss: 'x' }] } } })).toBeNull();
+    expect(bad({ chosen: { 'c1-s02': 3 } })).toBeNull();
+    expect(bad({ judges: { appeal: { kind: 'appeal', items: [okItem] }, source: { kind: 'source', items: [{ item: 'radio', correct: false, attempt: 1, miss: [0, 2], misconception: 'M14' }] } } })).not.toBeNull();
+  });
   it('완주 저장본(stage done)은 그대로 복원, clear 하면 키 삭제', () => {
     const done = { ...played(), stage: 'done' as const };
     save(done);

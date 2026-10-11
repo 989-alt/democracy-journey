@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'preact/hooks';
 import { ICON, UI } from './assets';
 import { sfx, unlock, playBgm } from './audio/audio';
 import type { Face, JudgeKind, Option } from './content/types';
-import { reduce } from './engine/reducer';
+import { holds, reduce } from './engine/reducer';
 import { clear, load, save } from './engine/save';
 import { currentScene, initialState, isLocked } from './engine/state';
 import type { Action, JudgeAnswer } from './engine/state';
@@ -48,7 +48,6 @@ export function App() {
   const [state, dispatch] = useReducer(reduce, undefined, () => initialState(SEED));
   const [face, setFace] = useState<Face>('calm');
   const [toast, setToast] = useState(0);
-  const [picked, setPicked] = useState<string | null>(null);
   const faceTimer = useRef<ReturnType<typeof setTimeout>>();
   // R32: 저장본은 state 로 들고 있다가 '시작'·'다시하기' 때 지운다(지운 저장본이 이어하기로 되살아나지 않게).
   const [saved, setSaved] = useState(() => load());
@@ -56,6 +55,9 @@ export function App() {
   const sc = currentScene(state);
   const chapter = sc.chapter;
   const next = () => dispatch({ type: 'next', t: Date.now() });
+  // R28·R31(QA r1 #2): 메모는 기록된 선택(state.chosen)으로 그린다 → 새로고침해도 첫 답·메모가 그대로다.
+  const chosenOpt = (sc.kind === 'story' || sc.kind === 'culture') ? sc.options.find((o) => o.id === state.chosen[sc.id]) : undefined;
+  const picked = state.stage === 'play' && chosenOpt && holds(sc, chosenOpt) ? chosenOpt.id : null;
 
   useEffect(() => {
     const once = () => { unlock(); window.removeEventListener('pointerdown', once); };
@@ -67,17 +69,16 @@ export function App() {
     if (state.stage === 'play') void playBgm(chapter).catch(() => {});
   }, [state.stage, chapter]);
 
+  // PRD §9(QA r1 #0): 로그가 늘 때마다·단계가 바뀔 때마다 저장. 토스트는 장 끝·판별·완주 때만.
+  // 로그가 빈 '시작' 직후는 저장하지 않는다(R32: 시작은 저장본을 지운다 — 첫 기록부터 다시 쌓인다).
   const lastEvt = state.log[state.log.length - 1];
   useEffect(() => {
-    if (state.stage === 'title') return;
-    if (state.stage === 'done' || lastEvt?.type === 'chapter_end' || lastEvt?.type === 'judge') {
-      save(state);
-      setToast((n) => n + 1);
-    }
+    if (state.stage === 'title' || state.log.length === 0) return;
+    save(state);
+    if (state.stage === 'done' || lastEvt?.type === 'chapter_end' || lastEvt?.type === 'judge') setToast((n) => n + 1);
   }, [state.log.length, state.stage]);
 
   useEffect(() => () => clearTimeout(faceTimer.current), []);
-  useEffect(() => setPicked(null), [sc.id]);
 
   const showFace = (delta: Option['delta']) => {
     setFace(faceFor(delta));
@@ -90,23 +91,20 @@ export function App() {
     if (state.stage !== 'play' || (sc.kind !== 'story' && sc.kind !== 'culture') || picked) return;
     const opt = sc.options.find((o) => o.id === optionId);
     if (!opt || isLocked(opt, state.stats) || state.chosen[sc.id] !== undefined) return;
-    if (sc.kind === 'culture') { // 맞음/틀림 메모를 본 뒤 '다음' 에서 dispatch (R19·R28)
-      sfx(optionId === sc.culture?.answer ? 'correct' : 'wrong');
-      setPicked(optionId);
-      return;
-    }
-    sfx('tap');
-    if (opt.misconception) { setPicked(optionId); return; } // 사실 교정 메모 뒤 '다음' 에서 dispatch (R31)
+    // 생활 문화·오개념 선택지도 즉시 choose(기록·자동 저장) — 리듀서가 장면에 머물게 하고 메모를 띄운다.
+    sfx(sc.kind === 'culture' ? (optionId === sc.culture?.answer ? 'correct' : 'wrong') : 'tap');
     showFace(opt.delta);
     dispatch({ type: 'choose', sceneId: sc.id, optionId, t: Date.now() });
   };
 
+  // 메모의 '다음' = next (리듀서는 기록된 선택이 있을 때만 넘긴다)
+  // 연타 가드: 같은 장면에서 두 번째 '다음' 이 다음 장면(장 제목 등)까지 넘기지 않게 장면 id 로 한 번만 보낸다.
+  const confirmed = useRef<string | null>(null);
+  useEffect(() => { confirmed.current = null; }, [sc.id, state.stage]);
   const confirm = () => {
-    if (!picked || (sc.kind !== 'culture' && sc.kind !== 'story')) return;
-    const opt = sc.options.find((o) => o.id === picked);
-    if (!opt) return;
-    showFace(opt.delta);
-    dispatch({ type: 'choose', sceneId: sc.id, optionId: picked, t: Date.now() });
+    if (!picked || confirmed.current === sc.id) return;
+    confirmed.current = sc.id;
+    next();
   };
 
   // keydown 은 한 번만 등록하고 최신 값은 ref 로 읽는다.

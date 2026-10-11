@@ -1,5 +1,5 @@
 import { CONTENT, sceneOrder } from '../content';
-import type { Option, StatKey, Stats } from '../content/types';
+import type { Option, Scene, StatKey, Stats } from '../content/types';
 import { judgePassed, pledgeComplete, scoreJudge } from './judge';
 import { SCENE_BY_ID, currentScene, initialState, isLocked, retryTargets } from './state';
 import type { Action, LogEvent, State } from './state';
@@ -26,6 +26,11 @@ function advance(state: State, t: number, nextId?: string, log: LogEvent[] = sta
   return target
     ? { ...state, sceneIndex: idx, log: ended, satStep }
     : { ...state, stage: 'done', log: ended, satStep };
+}
+
+// 선택 뒤 메모(맞음/틀림·사실 교정)를 보여 주느라 장면에 머무는가.
+export function holds(sc: Scene, opt: Option): boolean {
+  return sc.kind === 'culture' || !!opt.misconception;
 }
 
 export function reduce(state: State, action: Action): State {
@@ -61,6 +66,8 @@ export function reduce(state: State, action: Action): State {
         flags: opt.flag && !state.flags.includes(opt.flag) ? [...state.flags, opt.flag] : state.flags,
         chosen: { ...state.chosen, [sc.id]: opt.id },
       };
+      // R28·R31(QA r1 #2): 생활 문화·오개념 선택지는 기록·저장만 하고 머문다 → 메모를 본 뒤 'next' 가 넘긴다.
+      if (holds(sc, opt)) return { ...next, log };
       return advance(next, action.t, opt.next, log);
     }
 
@@ -68,7 +75,13 @@ export function reduce(state: State, action: Action): State {
       if (state.stage !== 'play') return state;
       const sc = currentScene(state);
       if (sc.kind === 'judge' && !(sc.judge && state.judges[sc.judge])) return state; // R30: 채점(judge 액션) 뒤에만 넘어간다
-      if ((sc.kind === 'story' || sc.kind === 'culture') && sc.options.length > 0) return state;
+      let jump: string | undefined;
+      if ((sc.kind === 'story' || sc.kind === 'culture') && sc.options.length > 0) {
+        // 선택지 장면은 기록된 선택이 메모로 머문 경우(holds)에만 넘어간다.
+        const opt = sc.options.find((o) => o.id === state.chosen[sc.id]);
+        if (!opt || !holds(sc, opt)) return state;
+        jump = opt.next;
+      }
       let log = state.log;
       if (sc.kind === 'compare') {
         const item = String(sc.compare);
@@ -76,7 +89,7 @@ export function reduce(state: State, action: Action): State {
           log = [...log, { t: action.t, type: 'compare_view', chapter: sc.chapter, scene: sc.id, item }];
         }
       }
-      return advance(state, action.t, undefined, log);
+      return advance(state, action.t, jump, log);
     }
 
     case 'judge': {
@@ -127,7 +140,7 @@ export function reduce(state: State, action: Action): State {
               ...prevRes,
               items: prevRes.items.map((i) => {
                 if (i.item !== q.item) return i;
-                const { misconception: _m, ...rest } = i;
+                const { misconception: _m, miss: _x, ...rest } = i;
                 return { ...rest, correct: action.correct, attempt, ...mis };
               }),
             },

@@ -36,7 +36,7 @@ function play(opts: { pick?: (s: State) => string; answer?: (k: JudgeKind) => Ju
   for (let i = 0; i < 400 && s.stage === 'play'; i++) {
     const sc = currentScene(s);
     let a: Action;
-    if (sc.kind === 'story' || sc.kind === 'culture') {
+    if ((sc.kind === 'story' || sc.kind === 'culture') && s.chosen[sc.id] === undefined) {
       const free = sc.options.find((o) => !o.misconception && !(o.lock && s.stats[o.lock.stat] < o.lock.min))!;
       const id = sc.kind === 'culture' ? sc.culture!.answer : (opts.pick?.(s) ?? free.id);
       a = { type: 'choose', sceneId: sc.id, optionId: id, t: ++t };

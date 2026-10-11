@@ -33,6 +33,7 @@ export const COPY = {
     criteriaLabel: '판단 기준',
     sourceCite: '사회 6-1 교과서 106쪽',
     sourceChecks: ['뉴스 형식 흉내', '작성자·날짜', '믿을 만한 출처', '타당한 근거'] as string[],
+    recheck: (labels: string[]) => `${labels.map((l) => `${l}?`).join(' ')} → 다시 봐요`,
     trustLabel: '믿을 만한 정도',
     total: '합계',
     point: '점',

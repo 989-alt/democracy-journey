@@ -35,11 +35,13 @@ export function scoreJudge(kind: JudgeKind, answer: JudgeAnswer, judges: Judges)
   } else if (answer.kind === 'source') {
     for (const c of judges.source.cards) {
       const a = answer.cards[c.id];
-      const matches = a ? c.answerChecks.filter((v, i) => a.checks[i] === v).length : 0;
+      // QA r1 #3: 카드 정답 = 신뢰도 일치 AND 기준 4개 모두 일치. 어긋난 기준 번호는 miss 로 남겨 피드백이 짚는다.
+      const miss = c.answerChecks.flatMap((v, i) => (a && a.checks[i] === v ? [] : [i]));
       const trustOk = !!a && a.trust === c.answerTrust;
       // 출처 종류만 보고 신뢰한 경우: 방송 M14, 소문 M18
       const mis = c.id === 'radio' ? 'M14' : c.id === 'rumor' ? 'M18' : undefined;
-      items.push(it(c.id, trustOk && matches >= 3, trustOk ? undefined : mis));
+      const item = it(c.id, trustOk && miss.length === 0, trustOk ? undefined : mis);
+      items.push(miss.length ? { ...item, miss } : item);
     }
   } else if (answer.kind === 'pledge') {
     // R15: 정답 = 플레이어 자신의 채점표 총점이 최고인 후보에게 투표(동점 허용). truth 는 쓰지 않는다.

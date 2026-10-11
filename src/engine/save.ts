@@ -17,6 +17,18 @@ export function clear(): void {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const JUDGE_KINDS = ['poll', 'appeal', 'source', 'pledge', 'organ'];
+
+// QA r1 #1: judges[kind] 내부까지 본다 — kind 일치, items 배열, 각 항목 item·correct·attempt (선택: misconception·miss).
+function validJudges(j: unknown): boolean {
+  if (!isObj(j)) return false;
+  return Object.entries(j).every(([k, r]) =>
+    JUDGE_KINDS.includes(k) && isObj(r) && r.kind === k && Array.isArray(r.items) &&
+    r.items.every((i) =>
+      isObj(i) && typeof i.item === 'string' && typeof i.correct === 'boolean' && Number.isInteger(i.attempt) &&
+      (i.misconception === undefined || typeof i.misconception === 'string') &&
+      (i.miss === undefined || (Array.isArray(i.miss) && i.miss.every((n) => Number.isInteger(n))))));
+}
 
 function valid(s: unknown): s is State {
   if (!isObj(s) || s.version !== 1) return false;
@@ -25,7 +37,8 @@ function valid(s: unknown): s is State {
   if (!Number.isInteger(s.sceneIndex) || (s.sceneIndex as number) < 0 || (s.sceneIndex as number) >= sceneOrder.length) return false;
   if (!isObj(s.stats) || !(['join', 'info', 'home'] as const).every((k) => Number.isInteger((s.stats as Record<string, unknown>)[k]) && (s.stats as Record<string, number>)[k] >= 0 && (s.stats as Record<string, number>)[k] <= 3)) return false;
   if (!Array.isArray(s.flags) || !s.flags.every((f) => typeof f === 'string')) return false;
-  if (!isObj(s.chosen) || !isObj(s.judges)) return false;
+  if (!isObj(s.chosen) || !Object.values(s.chosen).every((v) => typeof v === 'string')) return false;
+  if (!validJudges(s.judges)) return false;
   if (!Array.isArray(s.retryQueue) || !s.retryQueue.every((q) => isObj(q) && typeof q.kind === 'string' && typeof q.item === 'string' && typeof q.attempts === 'number')) return false;
   if (!Array.isArray(s.log) || !s.log.every((e) => isObj(e) && typeof e.t === 'number' && typeof e.type === 'string' && typeof e.chapter === 'number')) return false;
   return [0, 1, 2, 3, 4].includes(s.satStep as number);

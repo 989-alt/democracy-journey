@@ -5,7 +5,7 @@ import { COPY } from '../../content/copy';
 import type { JudgeKind, Scene } from '../../content/types';
 import { scoreJudge } from '../../engine/judge';
 import type { State } from '../../engine/state';
-import { SourceCard } from './Source';
+import { SourceCard, sourceFeedback } from './Source';
 import type { Trust } from './Source';
 import { POLL_H as H, POLL_W as W, retryTargets } from './drag';
 import { Feedback, JudgeFrame, verdictSfx } from './shared';
@@ -104,7 +104,7 @@ function RetrySource({ item, done, onAnswer }: { item: string; done: boolean; on
   const submit = () => {
     if (!trust || done) return;
     const r = scoreJudge('source', { kind: 'source', cards: { [card.id]: { checks, trust } } }, J).items.find((i) => i.item === card.id);
-    onAnswer(r?.correct === true, (r?.misconception && COPY.feedback[r.misconception]) || card.feedback);
+    onAnswer(r?.correct === true, sourceFeedback(card, r));
   };
   return (
     <>

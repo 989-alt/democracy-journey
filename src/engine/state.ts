@@ -17,7 +17,8 @@ export interface LogEvent {
 }
 export interface JudgeResult {
   kind: JudgeKind;
-  items: { item: string; correct: boolean; attempt: number; misconception?: string }[];
+  // miss: 판별③ 카드에서 어긋난 기준 번호(0~3, COPY.ui.sourceChecks 순)
+  items: { item: string; correct: boolean; attempt: number; misconception?: string; miss?: number[] }[];
 }
 // attempts = 이미 치른 "다시 보기" 횟수(0 시작). 원래 판별이 attempt 1, 다시 보기는 2·3 → 최대 2회.
 export interface RetryItem { kind: JudgeKind; item: string; attempts: number }

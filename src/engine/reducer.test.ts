@@ -77,6 +77,24 @@ describe('수치·선택', () => {
     expect(ok.log[1]).toMatchObject({ correct: true, scene: 'c1-s07' });
     expect(choose(at('c1-s07'), 'a').log[1].correct).toBe(false);
   });
+  it('R28·R31(QA r1 #2): culture·오개념 선택은 기록하고 머문다, next 는 기록 뒤에만 넘긴다', () => {
+    const c = at('c1-s07');
+    expect(reduce(c, { type: 'next', t: 1 })).toBe(c); // 선택 전 next 무시
+    const picked = choose(c, 'a');
+    expect(picked.sceneIndex).toBe(c.sceneIndex);
+    expect(picked.chosen['c1-s07']).toBe('a');
+    expect(choose(picked, 'b')).toBe(picked); // 첫 선택 확정
+    expect(reduce(picked, { type: 'next', t: 2 }).sceneIndex).toBe(c.sceneIndex + 1);
+    const m = choose(at('c1-s02'), 'a'); // M1 오개념 선택지
+    expect(m.sceneIndex).toBe(sceneOrder.indexOf('c1-s02'));
+    expect(m.log[0].misconception).toBe('M1');
+    expect(reduce(m, { type: 'next', t: 2 }).sceneIndex).toBe(sceneOrder.indexOf('c1-s03'));
+    const plain = choose(at('c1-s02'), 'b'); // 일반 선택지는 즉시 넘어간다
+    expect(plain.sceneIndex).toBe(sceneOrder.indexOf('c1-s03'));
+    // 일반 선택지로 기록된 장면에 되돌려 둬도 next 는 넘기지 않는다
+    const back = { ...plain, sceneIndex: sceneOrder.indexOf('c1-s02') };
+    expect(reduce(back, { type: 'next', t: 3 })).toBe(back);
+  });
   it('option.next 는 앞쪽 점프만 허용(사건 순서 고정)', () => {
     const sc = CONTENT.scenes.find((x) => x.id === 'c1-s02')!;
     const opt = sc.options[2];
@@ -246,7 +264,7 @@ describe('결정성', () => {
       let t = 0;
       for (let i = 0; i < 12 && s.stage === 'play'; i++) {
         const sc = currentScene(s);
-        if (sc.kind === 'story' || sc.kind === 'culture') {
+        if ((sc.kind === 'story' || sc.kind === 'culture') && s.chosen[sc.id] === undefined) {
           const open = sc.options.filter((o) => !o.lock);
           s = reduce(s, { type: 'choose', sceneId: sc.id, optionId: open[Math.floor(r() * open.length)].id, t: ++t });
         } else if (sc.kind !== 'judge') s = reduce(s, { type: 'next', t: ++t });

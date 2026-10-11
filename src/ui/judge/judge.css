@@ -80,9 +80,13 @@ img.ic.big{width:40px;height:40px}
 .trust{display:flex;gap:6px;flex:none}
 .trust .btn.paper{flex:1;min-width:0;padding:0;height:44px;min-height:44px;border-width:22px;border-image-width:22px}
 .trust .btn.paper>span{display:flex;align-items:center;justify-content:center}
-.trust .lo>span{color:var(--trust-low)} .trust .mi>span{color:var(--trust-mid)} .trust .hi>span{color:var(--trust-high)}
+.trust .btn.paper>span{color:var(--foreground)}
+/* QA r1 #4: 라벨 글자는 잉크, trust 색은 칩(밑줄 띠)·도장 테두리에만 */
+.trust .btn.paper>span::before{content:"";width:10px;height:10px;border-radius:50%;margin-right:6px;flex:none;background:var(--tc)}
+.trust .lo{--tc:var(--trust-low)} .trust .mi{--tc:var(--trust-mid)} .trust .hi{--tc:var(--trust-high)}
 .btn.paper.on{filter:brightness(.93)}
 .btn.paper.on::after{content:"";position:absolute;inset:-24px;border-radius:30px;box-shadow:inset 0 0 0 3px var(--accent);pointer-events:none}
+.trust .btn.paper.on::after{box-shadow:inset 0 0 0 3px var(--tc)}
 .card.rule{grid-row:1/3;grid-column:3;justify-content:flex-start;cursor:default}
 .rule h3{margin:0 0 var(--space-2);font:400 var(--text-lg)/1.2 var(--font-display)}
 .rule ol{margin:0;padding-left:22px;font-size:18px;line-height:1.4;word-break:keep-all}

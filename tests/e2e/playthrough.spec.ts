@@ -62,6 +62,12 @@ test('R28 생활 문화: 첫 선택 확정·맞음/틀림 메모·수치 칩 숨
   await expect(page.locator('.cards .card.picked')).toHaveCount(1);
   await expect(memo.getByRole('img', { name: COPY.ui.wrong })).toBeVisible();
   await shot(page, 't10-culture.png');
+  // QA r1 #0·#2: 첫 답은 고르는 즉시 저장 → 메모를 본 채 새로고침해도 같은 답·메모(다시 고를 수 없음)
+  expect((await readSave(page)).chosen['c1-s07']).toBe(sc.options[wrongIdx].id);
+  await page.reload();
+  await page.getByRole('button', { name: `${COPY.ui.resume} (${COPY.ui.chapterN(1)})`, exact: true }).click();
+  await expect(memo.getByRole('img', { name: COPY.ui.wrong })).toBeVisible();
+  await expect(page.locator('.cards .card').nth(wrongIdx)).toHaveClass(/picked/);
   await memo.getByRole('button', { name: COPY.ui.next }).click();
 
   // 1장 판별(투표소): 함정 하나만 누르고 판단 끝내기 → 피드백. 그 자리에서 새로고침.

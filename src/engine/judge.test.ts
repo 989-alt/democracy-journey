@@ -31,19 +31,28 @@ describe('판별② appeal', () => {
   });
 });
 
-describe('판별③ source — 신뢰도 일치 AND 체크 4개 중 ≥3 일치', () => {
+describe('판별③ source — 신뢰도 일치 AND 체크 4개 모두 일치 (QA r1 #3)', () => {
   it('모범 답안은 전부 정답', () => {
     expect(judgePassed(scoreJudge('source', { kind: 'source', cards: okSource() }, J))).toBe(true);
   });
-  it('체크 3/4 일치 + 신뢰도 일치 → 정답', () => {
+  it('체크 3/4 일치 + 신뢰도 일치 → 오답, 어긋난 기준 번호 miss', () => {
     const cards = okSource();
-    cards.photo.checks = [true, true, true, true]; // 정답 [f,t,t,t] 와 3개 일치
-    expect(get(scoreJudge('source', { kind: 'source', cards }, J), 'photo').correct).toBe(true);
+    const want = J.source.cards.find((c) => c.id === 'photo')!.answerChecks;
+    cards.photo.checks = want.map((v, i) => (i === 0 ? !v : v));
+    expect(get(scoreJudge('source', { kind: 'source', cards }, J), 'photo')).toEqual({ item: 'photo', correct: false, attempt: 1, miss: [0] });
   });
-  it('체크 2/4 일치 → 신뢰도가 맞아도 오답(오개념 없음)', () => {
+  it('체크 2/4 일치 → 신뢰도가 맞아도 오답(오개념 없음), miss 2개', () => {
     const cards = okSource();
-    cards.photo.checks = [true, true, false, true]; // 정답 [f,t,t,t] 와 2개 일치
-    expect(get(scoreJudge('source', { kind: 'source', cards }, J), 'photo')).toEqual({ item: 'photo', correct: false, attempt: 1 });
+    const want = J.source.cards.find((c) => c.id === 'photo')!.answerChecks;
+    cards.photo.checks = want.map((v, i) => (i === 0 || i === 2 ? !v : v));
+    expect(get(scoreJudge('source', { kind: 'source', cards }, J), 'photo')).toEqual({ item: 'photo', correct: false, attempt: 1, miss: [0, 2] });
+  });
+  it('모든 카드·체크 조합: 정답 ⇔ 신뢰도 일치 AND 4개 일치', () => {
+    for (const c of J.source.cards) for (let mask = 0; mask < 16; mask++) {
+      const checks = c.answerChecks.map((v, i) => (mask & (1 << i) ? !v : v));
+      const r = get(scoreJudge('source', { kind: 'source', cards: { [c.id]: { checks, trust: c.answerTrust } } }, J), c.id);
+      expect(r.correct).toBe(mask === 0);
+    }
   });
   it('체크는 맞고 신뢰도가 틀리면 오답, 방송 M14·소문 M18', () => {
     const cards = okSource();
