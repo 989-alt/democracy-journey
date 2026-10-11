@@ -31,22 +31,33 @@ export function setMuted(m: boolean): void {
 }
 export const isMuted = () => muted;
 
-async function load(n: number): Promise<AudioBuffer> {
+type Track = 1 | 2 | 3 | 4 | 5;
+
+/** CSP connect-src 'none' 때문에 data: URL 은 fetch 없이 직접 디코드한다. */
+async function bytes(url: string): Promise<ArrayBuffer> {
+  if (!url.startsWith('data:')) return (await fetch(url)).arrayBuffer(); // dev 서버 URL
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u.buffer;
+}
+
+async function load(n: Track): Promise<AudioBuffer> {
   let b = cache.get(n);
   if (!b) {
-    const res = await fetch(BGM[n as 1]);
-    b = await init().decodeAudioData(await res.arrayBuffer());
+    b = await init().decodeAudioData(await bytes(BGM[n]));
     cache.set(n, b);
   }
   return b;
 }
 
-export async function playBgm(n: 1 | 2 | 3 | 4 | 5): Promise<void> {
+export async function playBgm(n: Track): Promise<void> {
   if (n === cur) return;
   cur = n;
   const c = init();
+  const out = master;
   const buf = await load(n);
-  if (cur !== n) return; // 로딩 중 다른 트랙으로 바뀜
+  if (cur !== n || !out) return; // 로딩 중 다른 트랙으로 바뀜
   const t = c.currentTime;
   if (curGain && curSrc) {
     curGain.gain.setValueAtTime(curGain.gain.value, t);
@@ -59,7 +70,7 @@ export async function playBgm(n: 1 | 2 | 3 | 4 | 5): Promise<void> {
   src.loop = true;
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(0.6, t + 1);
-  src.connect(g).connect(master!);
+  src.connect(g).connect(out);
   src.start(t);
   curSrc = src;
   curGain = g;

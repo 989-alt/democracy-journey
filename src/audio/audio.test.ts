@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../assets', () => ({ BGM: { 1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e' } }));
+vi.mock('../assets', () => ({ BGM: { 1: 'data:audio/ogg;base64,AQIDBAU=', 2: 'b', 3: 'c', 4: 'd', 5: 'e' } }));
 
 const made = { sources: [] as any[], resume: vi.fn() };
 class FakeParam { value = 1; setValueAtTime = vi.fn(); linearRampToValueAtTime = vi.fn(); exponentialRampToValueAtTime = vi.fn(); setTargetAtTime = vi.fn((v: number) => { this.value = v; }); }
@@ -10,7 +10,7 @@ class FakeCtx {
   createGain() { return new FakeNode(); }
   createOscillator() { return new FakeNode(); }
   createBufferSource() { const s = new FakeNode(); made.sources.push(s); return s; }
-  decodeAudioData = async () => ({});
+  decodeAudioData = vi.fn(async (_b: ArrayBuffer) => ({}));
   resume = () => { this.state = 'running'; made.resume(); return Promise.resolve(); };
 }
 
@@ -34,6 +34,16 @@ describe('audio', () => {
     expect(made.resume).not.toHaveBeenCalled();
     A.unlock();
     expect(made.resume).toHaveBeenCalledTimes(1);
+  });
+  it('data: URL 은 fetch 없이 디코드한다', async () => {
+    const f = vi.fn();
+    (globalThis as any).fetch = f;
+    const c = A.init() as any;
+    await A.playBgm(1);
+    expect(f).not.toHaveBeenCalled();
+    const buf = c.decodeAudioData.mock.calls[0][0];
+    expect(buf).toBeInstanceOf(ArrayBuffer);
+    expect(buf.byteLength).toBe(5);
   });
   it('같은 트랙은 새 소스를 만들지 않는다', async () => {
     A.unlock();
