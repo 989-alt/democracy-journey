@@ -47,4 +47,4 @@
 .yr>span{position:absolute;left:6px;right:34px;top:50%;transform:translateY(-50%);text-align:center;font:400 var(--text-base)/1 var(--font-body)}
 .tl-memo{list-style:none;margin:var(--space-1) 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
 .tl-memo li{padding:8px 12px;background:var(--img-note) center/100% 100% no-repeat;font:400 18px/1.05 var(--font-hand);word-break:keep-all}
-.cite{position:absolute;right:var(--space-3);bottom:-18px;margin:0;font-size:var(--text-sm);line-height:1;color:var(--foreground)}
+.tl>.cite{position:absolute;right:var(--space-3);bottom:-18px;margin:0;font-size:var(--text-sm);line-height:1;color:var(--foreground)}

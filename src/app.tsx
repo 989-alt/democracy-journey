@@ -156,7 +156,7 @@ export function App() {
   } else if (sc.kind === 'compare') {
     screen = <Compare key={sc.id} scene={sc} onNext={next} />;
   } else {
-    screen = <Retry key={sc.id} scene={sc} state={state} onRetry={(kind, item, correct) => dispatch({ type: 'retry', kind, item, correct, t: Date.now() })} onNext={next} />;
+    screen = <Retry key={sc.id} scene={sc} state={state} onRetry={(kind, item, answer) => dispatch({ type: 'retry', kind, item, answer, t: Date.now() })} onNext={next} />;
   }
 
   return (

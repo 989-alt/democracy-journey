@@ -13,6 +13,7 @@ export interface LogEvent {
   attempt?: number;
   option?: string;
   misconception?: string;
+  miss?: number[]; // 판별③ 카드에서 어긋난 기준 번호(judge 원판별에는 없고, 다시 보기 judge·retry 에만 남는다)
   delta?: Partial<Stats>;
 }
 export interface JudgeResult {
@@ -43,13 +44,18 @@ export type JudgeAnswer =
   | { kind: 'source'; cards: Record<string, { checks: boolean[]; trust: 'low' | 'mid' | 'high' }> }
   | { kind: 'pledge'; scores: Record<string, [number, number, number]>; vote: string }
   | { kind: 'organ'; placed: Record<string, string>; checks: Record<string, string> };
+// 다시 보기 한 문항에 대한 이번 답(QA r3 #0). 엔진(judge.ts scoreRetry)이 채점한다 — UI 는 답만 넘긴다.
+export type RetryAnswer =
+  | { kind: 'poll'; violation: boolean }
+  | { kind: 'appeal'; why: string }
+  | { kind: 'source'; checks: boolean[]; trust: 'low' | 'mid' | 'high' };
 export type Action =
   | { type: 'start'; seed: number; t: number }
   | { type: 'restore'; state: State; t: number }
   | { type: 'choose'; sceneId: string; optionId: string; t: number }
   | { type: 'next'; t: number }
   | { type: 'judge'; kind: JudgeKind; answer: JudgeAnswer; t: number }
-  | { type: 'retry'; kind: JudgeKind; item: string; correct: boolean; t: number }
+  | { type: 'retry'; kind: JudgeKind; item: string; answer: RetryAnswer; t: number }
   | { type: 'reset'; t: number };
 
 export const SCENE_BY_ID: Record<string, Scene> = Object.fromEntries(CONTENT.scenes.map((s) => [s.id, s]));

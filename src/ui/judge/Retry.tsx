@@ -3,8 +3,8 @@ import { BG } from '../../assets';
 import { CONTENT } from '../../content';
 import { COPY } from '../../content/copy';
 import type { JudgeKind, Scene } from '../../content/types';
-import { scoreJudge } from '../../engine/judge';
-import type { State } from '../../engine/state';
+import { scoreRetry } from '../../engine/judge';
+import type { RetryAnswer, State } from '../../engine/state';
 import { SourceCard, sourceFeedback } from './Source';
 import type { Trust } from './Source';
 import { POLL_H as H, POLL_W as W, retryTargets } from './drag';
@@ -14,7 +14,7 @@ import './judge.css';
 interface Props {
   scene: Scene;
   state: State;
-  onRetry: (kind: JudgeKind, item: string, correct: boolean) => void;
+  onRetry: (kind: JudgeKind, item: string, answer: RetryAnswer) => void;
   onNext: () => void;
 }
 interface Done { correct: boolean; text: string }
@@ -39,11 +39,14 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
 
   const { kind, item } = target;
   const last = step === targets.length - 1;
-  const answer = (correct: boolean, text: string) => {
+  // QA r3 #0: 이번 답을 엔진에 넘긴다. 화면 피드백도 리듀서와 같은 scoreRetry 결과로 만든다(채점 단일 출처).
+  const answer = (a: RetryAnswer, text: (r: NonNullable<ReturnType<typeof scoreRetry>>) => string) => {
     if (done) return;
-    setDone({ correct, text });
-    verdictSfx(correct);
-    onRetry(kind, item, correct);
+    const r = scoreRetry(item, a, J);
+    if (!r) return;
+    setDone({ correct: r.correct, text: text(r) });
+    verdictSfx(r.correct);
+    onRetry(kind, item, a);
   };
   const after = () => {
     if (last) { onNext(); return; }
@@ -55,7 +58,6 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
   if (kind === 'poll') {
     const s = J.poll.spots.find((x) => x.id === item)!;
     const k = Math.min(440 / s.w, 280 / s.h);
-    const violating = s.violation !== null;
     body = (
       <>
         <div class="frame crop" style={{ width: `${s.w * k + 52}px`, height: `${s.h * k + 52}px` }}>
@@ -64,7 +66,7 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
         <div class="card jcard rq"><p>{COPY.ui.retryPollQ}</p></div>
         <div class="two">
           {[true, false].map((v) => (
-            <button key={String(v)} type="button" class="btn" disabled={!!done} onClick={() => answer(v === violating, s.explain)}>
+            <button key={String(v)} type="button" class="btn" disabled={!!done} onClick={() => answer({ kind: 'poll', violation: v }, () => s.explain)}>
               <span>{v ? COPY.ui.retryViolation : COPY.ui.retryFine}</span>
             </button>
           ))}
@@ -77,7 +79,7 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
         <div class="card jcard rq"><p>{J.appeal.situation} {COPY.ui.why}</p></div>
         <div class="grid3" role="group" aria-label={COPY.ui.why}>
           {J.appeal.why.map((w, i) => (
-            <button key={w.id} type="button" class="card jcard" aria-disabled={!!done} onClick={() => answer(w.correct, w.correct ? COPY.feedback.appealRight : COPY.feedback[w.misconception ?? 'appeal.wrong'] ?? COPY.feedback['appeal.wrong'])}>
+            <button key={w.id} type="button" class="card jcard" aria-disabled={!!done} onClick={() => answer({ kind: 'appeal', why: w.id }, (r) => (r.correct ? COPY.feedback.appealRight : COPY.feedback[r.misconception ?? 'appeal.wrong'] ?? COPY.feedback['appeal.wrong']))}>
               <span class="n">{i + 1}</span>
               <span class="t">{w.label}</span>
             </button>
@@ -97,14 +99,13 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
   );
 }
 
-function RetrySource({ item, done, onAnswer }: { item: string; done: boolean; onAnswer: (correct: boolean, text: string) => void }) {
+function RetrySource({ item, done, onAnswer }: { item: string; done: boolean; onAnswer: (a: RetryAnswer, text: (r: NonNullable<ReturnType<typeof scoreRetry>>) => string) => void }) {
   const card = J.source.cards.find((c) => c.id === item)!;
   const [checks, setChecks] = useState([false, false, false, false]);
   const [trust, setTrust] = useState<Trust | undefined>();
   const submit = () => {
     if (!trust || done) return;
-    const r = scoreJudge('source', { kind: 'source', cards: { [card.id]: { checks, trust } } }, J).items.find((i) => i.item === card.id);
-    onAnswer(r?.correct === true, sourceFeedback(card, r));
+    onAnswer({ kind: 'source', checks, trust }, (r) => sourceFeedback(card, r));
   };
   return (
     <>

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clear, load, save, SAVE_KEY } from './save';
 import { initialState, currentScene, retryTargets } from './state';
+import { retryAnswer } from './retryAnswers';
 import type { Action, JudgeAnswer, State } from './state';
 import { reduce } from './reducer';
 import { CONTENT, sceneOrder } from '../content';
@@ -115,7 +116,7 @@ function playAll(onStep: (s: State, a: Action) => void): State {
     } else {
       if (sc.kind === 'retry') {
         // 첫 다시 보기는 오답(attempts 0→1), 다음은 정답
-        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) step({ type: 'retry', kind: q.kind, item: q.item, correct: q.attempts > 0, t: ++t });
+        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) step({ type: 'retry', kind: q.kind, item: q.item, answer: retryAnswer(q.kind, q.item, q.attempts > 0), t: ++t });
       }
       if (i === 20) step({ type: 'restore', state: s, t: ++t });
       step({ type: 'next', t: ++t });
@@ -184,5 +185,15 @@ describe('load 검증 — log·retryQueue 손상 폐기(QA r2 #0)', () => {
     expect(ev({ t: 1, type: 'judge', kind: 'appeal', chapter: 2, item: 'nope', correct: true, attempt: 1 })).toBeNull();
     expect(ev({ t: 1, type: 'retry', kind: 'poll', chapter: 2, item: J.poll.spots[0].id, correct: false })).toBeNull();
     expect(ev(null as unknown as object)).toBeNull();
+  });
+  it('QA r3 #0: 다시 보기 이벤트의 miss — 새 필드 받음, 옛 저장본(miss 없음) 그대로 로드, 손상 miss 폐기', () => {
+    const ev = (e: object) => bad({ ...initialState(7), stage: 'play', log: [e] });
+    const r = { t: 1, type: 'retry', kind: 'source', chapter: 4, item: 'radio', correct: false, attempt: 2 };
+    expect(ev(r)).not.toBeNull(); // 옛 모양
+    expect(ev({ ...r, miss: [1, 2, 3] })).not.toBeNull();
+    expect(ev({ ...r, type: 'judge', miss: [0] })).not.toBeNull();
+    expect(ev({ ...r, miss: [4] })).toBeNull();
+    expect(ev({ ...r, miss: ['1'] })).toBeNull();
+    expect(ev({ ...r, miss: 1 })).toBeNull();
   });
 });

@@ -45,6 +45,7 @@ const isItem = (kind: unknown, item: unknown): boolean =>
 const isChapter = (n: unknown): boolean => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 5;
 const isScene = (v: unknown): boolean => typeof v === 'string' && v in SCENE_BY_ID;
 const optStr = (v: unknown): boolean => v === undefined || typeof v === 'string';
+const isMiss = (v: unknown): boolean => v === undefined || (Array.isArray(v) && v.every((n) => Number.isInteger(n) && n >= 0 && n <= 3));
 const isAttempt = (n: unknown): boolean => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 3;
 
 // 재출제 큐: reducer 의 judge 는 틀린 문항을 kind 무관하게 attempts 0 으로 넣고, retry 는 ①~③만 attempts 0→1 로 올린 뒤
@@ -75,8 +76,9 @@ function validEvent(e: unknown): boolean {
     case 'judge':
     case 'retry':
       // judge 의 scene 은 원래 판별에만 있고, 다시 보기가 남기는 judge·retry 에는 없다.
+      // miss(QA r3 #0)는 다시 보기 판별③ 오답에만 있다 — 옛 저장본(miss 없음)도 받는다.
       return isItem(e.kind, e.item) && typeof e.correct === 'boolean' && isAttempt(e.attempt) &&
-        (e.scene === undefined || isScene(e.scene));
+        (e.scene === undefined || isScene(e.scene)) && isMiss(e.miss);
     default:
       return false;
   }

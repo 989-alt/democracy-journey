@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { CONTENT, sceneOrder } from '../content';
 import { rng } from './rng';
 import { reduce } from './reducer';
+import { scoreJudge, scoreRetry } from './judge';
+import { verdict } from './verdict';
 import { currentScene, initialState } from './state';
+import { retryAnswer } from './retryAnswers';
 import type { Action, State } from './state';
 
 const J = CONTENT.judges;
@@ -192,7 +195,7 @@ describe('retry', () => {
   const failed = () => ({ ...reduce(at('c1-s08'), polls(wrong2())), sceneIndex: R2 });
   function wrong2() { return ['bribe', 'trap_home']; }
   const retry = (s: State, correct: boolean, item = 'group', t = 9): State =>
-    reduce(s, { type: 'retry', kind: 'poll', item, correct, t });
+    reduce(s, { type: 'retry', kind: 'poll', item, answer: retryAnswer('poll', item, correct), t });
   const toCh3 = (s: State): State => ({ ...s, sceneIndex: R3 });
 
   it('retry 는 stats·flags 불변', () => {
@@ -227,15 +230,63 @@ describe('retry', () => {
     expect(attempts).toEqual([1, 2, 3]);
     expect(retry(s, false)).toBe(s); // 큐에 없으면 무시
   });
-  it('다시 틀리면 직전 오개념을 이어받고, 맞히면 오개념 제거', () => {
+  it('오개념은 이번 답에서 — 다시 틀리면 이번 답의 오개념, 맞히면 제거', () => {
     const s = failed();
     expect(retry(s, false, 'trap_home').log.slice(-1)[0].misconception).toBe('M6');
     expect(retry(s, true, 'trap_home').log.slice(-1)[0].misconception).toBeUndefined();
   });
+  it('답 모양이 kind 와 어긋나거나 손상되면 무시', () => {
+    const s = failed();
+    expect(reduce(s, { type: 'retry', kind: 'poll', item: 'group', answer: { kind: 'appeal', why: 'strong' }, t: 9 })).toBe(s);
+    expect(reduce(s, { type: 'retry', kind: 'poll', item: 'group', answer: { kind: 'poll', violation: 'y' as unknown as boolean }, t: 9 })).toBe(s);
+  });
+  // QA r3 #0: 이번 답 채점
+  const J = CONTENT.judges;
+  const cardsWith = (id: string, trust: 'low' | 'mid' | 'high') =>
+    Object.fromEntries(J.source.cards.map((c) => [c.id, { checks: [...c.answerChecks], trust: c.id === id ? trust : c.answerTrust }]));
+  const finalOf = (s: State, kind: string, item: string) => s.log.filter((e) => e.type === 'judge' && e.kind === kind && e.item === item).slice(-1)[0];
+
+  it('M14 교정: 판별③ 라디오 높음(M14) → 다시 보기에서 체크 일부만 맞고 낮음 → 최종 M14 없음, miss 만', () => {
+    let s = reduce(at(CONTENT.scenes.find((x) => x.judge === 'source')!.id), { type: 'judge', kind: 'source', answer: { kind: 'source', cards: cardsWith('radio', 'high') }, t: 1 });
+    expect(finalOf(s, 'source', 'radio')).toMatchObject({ correct: false, misconception: 'M14' });
+    const r4 = CONTENT.scenes.find((x) => x.kind === 'retry' && x.chapter === 4)!.id;
+    s = { ...s, sceneIndex: sceneOrder.indexOf(r4) };
+    const radio = J.source.cards.find((c) => c.id === 'radio')!;
+    const checks = [true, false, false, false];
+    s = reduce(s, { type: 'retry', kind: 'source', item: 'radio', answer: { kind: 'source', checks, trust: 'low' }, t: 2 });
+    const miss = radio.answerChecks.flatMap((v, i) => (checks[i] === v ? [] : [i]));
+    expect(miss.length).toBeGreaterThan(0);
+    const fin = finalOf(s, 'source', 'radio');
+    expect(fin).toMatchObject({ correct: false, attempt: 2, miss });
+    expect(fin.misconception).toBeUndefined();
+    expect(s.log[s.log.length - 2]).toMatchObject({ type: 'retry', correct: false, miss });
+    expect(s.judges.source?.items.find((i) => i.item === 'radio')).toEqual({ item: 'radio', correct: false, attempt: 2, miss });
+    expect(verdict(s.log).fails).not.toContain('S10');
+  });
+  it('M11 신규: 판별② 다른 오답 → 다시 보기에서 M11 선택 → 최종 attempt 에 M11, S10 실패', () => {
+    let s = reduce(at(CONTENT.scenes.find((x) => x.judge === 'appeal')!.id), { type: 'judge', kind: 'appeal', answer: { kind: 'appeal', why: 'lazy' }, t: 1 });
+    expect(finalOf(s, 'appeal', 'why').misconception).toBeUndefined();
+    expect(verdict(s.log).fails).not.toContain('S10');
+    const r3 = CONTENT.scenes.find((x) => x.kind === 'retry' && x.chapter === 3)!.id;
+    s = reduce({ ...s, sceneIndex: sceneOrder.indexOf(r3) }, { type: 'retry', kind: 'appeal', item: 'why', answer: { kind: 'appeal', why: 'strong' }, t: 2 });
+    expect(finalOf(s, 'appeal', 'why')).toMatchObject({ correct: false, attempt: 2, misconception: 'M11' });
+    expect(s.judges.appeal?.items[0]).toEqual({ item: 'why', correct: false, attempt: 2, misconception: 'M11' });
+    expect(verdict(s.log).fails).toContain('S10');
+  });
+  it('엔진 채점 = UI 채점: scoreRetry 가 scoreJudge 와 같은 판정', () => {
+    for (const c of J.source.cards) {
+      for (const trust of ['low', 'mid', 'high'] as const) {
+        const a = scoreRetry(c.id, { kind: 'source', checks: [...c.answerChecks], trust }, J)!;
+        const b = scoreJudge('source', { kind: 'source', cards: cardsWith(c.id, trust) }, J).items.find((i) => i.item === c.id)!;
+        expect(a).toEqual(b);
+      }
+    }
+    for (const w of J.appeal.why) expect(scoreRetry('why', { kind: 'appeal', why: w.id }, J)).toEqual(scoreJudge('appeal', { kind: 'appeal', why: w.id }, J).items[0]);
+  });
   it('큐에 없는 항목·title 단계는 무시', () => {
     const s = failed();
     expect(retry(s, true, 'bribe')).toBe(s);
-    expect(reduce(initialState(1), { type: 'retry', kind: 'poll', item: 'x', correct: true, t: 1 }).log).toEqual([]);
+    expect(reduce(initialState(1), { type: 'retry', kind: 'poll', item: 'x', answer: { kind: 'poll', violation: true }, t: 1 }).log).toEqual([]);
   });
   it('R29: retry 는 다시 보기 장면에서만, 한 장에서 문항마다 한 번만, pledge·organ 은 받지 않는다', () => {
     const onJudge = reduce(at('c1-s08'), polls(wrong2())); // 판별 장면 그대로
@@ -244,7 +295,7 @@ describe('retry', () => {
     expect(retry(once, true)).toBe(once); // 같은 장 같은 문항 두 번째는 무시(새로고침 재답 방지)
     expect(retry(once, true, 'stack').retryQueue.find((q) => q.item === 'stack')).toBeUndefined(); // 다른 문항은 받는다
     const pledgeQ = { ...failed(), retryQueue: [{ kind: 'pledge' as const, item: 'vote', attempts: 0 }] };
-    expect(reduce(pledgeQ, { type: 'retry', kind: 'pledge', item: 'vote', correct: true, t: 1 })).toBe(pledgeQ);
+    expect(reduce(pledgeQ, { type: 'retry', kind: 'pledge', item: 'vote', answer: { kind: 'poll', violation: true }, t: 1 })).toBe(pledgeQ);
   });
   it('R29: 2장 다시 보기에서 큐의 poll 문항 전부를 차례로 답할 수 있다', () => {
     let s = failed();

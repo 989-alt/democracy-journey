@@ -5,6 +5,7 @@ import { reduce } from './reducer';
 import { currentScene, initialState } from './state';
 import type { Action, JudgeAnswer, LogEvent, State } from './state';
 import { verdict } from './verdict';
+import { retryAnswer } from './retryAnswers';
 import { retryTargets } from './state';
 
 const J = CONTENT.judges;
@@ -44,7 +45,7 @@ function play(opts: { pick?: (s: State) => string; answer?: (k: JudgeKind) => Ju
       a = { type: 'judge', kind: sc.judge!, answer: (opts.answer ?? correctAnswer)(sc.judge!), t: ++t };
     } else {
       if (sc.kind === 'retry' && opts.retry) {
-        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) s = reduce(s, { type: 'retry', kind: q.kind, item: q.item, correct: opts.retry(q.kind, q.item), t: ++t });
+        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) s = reduce(s, { type: 'retry', kind: q.kind, item: q.item, answer: retryAnswer(q.kind, q.item, opts.retry(q.kind, q.item)), t: ++t });
       }
       a = { type: 'next', t: ++t };
     }

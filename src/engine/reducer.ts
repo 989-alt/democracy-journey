@@ -1,6 +1,6 @@
 import { CONTENT, sceneOrder } from '../content';
 import type { Option, Scene, StatKey, Stats } from '../content/types';
-import { judgePassed, pledgeComplete, scoreJudge } from './judge';
+import { judgePassed, pledgeComplete, scoreJudge, scoreRetry } from './judge';
 import { SCENE_BY_ID, currentScene, initialState, isLocked, retryTargets } from './state';
 import type { Action, LogEvent, State } from './state';
 
@@ -125,24 +125,25 @@ export function reduce(state: State, action: Action): State {
       // 화면과 같은 목록(①~③, 지난 장 판별, 이 장에서 아직 안 답한 문항)에 있을 때만 받는다
       const q = retryTargets(state.retryQueue, state.log, sc.chapter).find((x) => x.kind === action.kind && x.item === action.item);
       if (!q) return state;
+      if (action.answer?.kind !== q.kind) return state;
+      // QA r3 #0: 이번 답을 엔진이 채점한다. 오개념·miss 는 이번 답에서만 — 이전 판단을 이어받지 않는다.
+      const r = scoreRetry(q.item, action.answer, CONTENT.judges);
+      if (!r) return state;
       const attempt = q.attempts + 2; // 원래 판별 = 1회차
-      // 다시 틀리면 직전 판단의 오개념을 이어받는다(최종 attempt 에서 S10 이 읽는다).
-      const prev = [...state.log].reverse().find((e) => e.type === 'judge' && e.kind === q.kind && e.item === q.item);
-      const mis = !action.correct && prev?.misconception ? { misconception: prev.misconception } : {};
-      const base = { t: action.t, chapter: sc.chapter, kind: q.kind, item: q.item, correct: action.correct, attempt, ...mis };
-      const done = action.correct || attempt >= 3;
-      // 결과 화면이 최종 attempt 를 보여 주도록 judges 항목도 갱신
+      const extra = {
+        ...(!r.correct && r.misconception ? { misconception: r.misconception } : {}),
+        ...(!r.correct && r.miss?.length ? { miss: r.miss } : {}),
+      };
+      const base = { t: action.t, chapter: sc.chapter, kind: q.kind, item: q.item, correct: r.correct, attempt, ...extra };
+      const done = r.correct || attempt >= 3;
+      // 결과 화면이 최종 attempt 를 보여 주도록 judges 항목도 이번 답으로 교체
       const prevRes = state.judges[q.kind];
       const judges = prevRes
         ? {
             ...state.judges,
             [q.kind]: {
               ...prevRes,
-              items: prevRes.items.map((i) => {
-                if (i.item !== q.item) return i;
-                const { misconception: _m, miss: _x, ...rest } = i;
-                return { ...rest, correct: action.correct, attempt, ...mis };
-              }),
+              items: prevRes.items.map((i) => (i.item === q.item ? { item: q.item, correct: r.correct, attempt, ...extra } : i)),
             },
           }
         : state.judges;

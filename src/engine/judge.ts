@@ -1,5 +1,5 @@
 import type { Judges, JudgeKind } from '../content/types';
-import type { JudgeAnswer, JudgeResult } from './state';
+import type { JudgeAnswer, JudgeResult, RetryAnswer } from './state';
 
 type Item = JudgeResult['items'][number];
 const it = (item: string, correct: boolean, misconception?: string): Item =>
@@ -58,6 +58,26 @@ export function scoreJudge(kind: JudgeKind, answer: JudgeAnswer, judges: Judges)
     }
   }
   return { kind, items };
+}
+
+// 다시 보기 한 문항 채점(QA r3 #0) — 원판별과 같은 scoreJudge 를 그 문항 하나에만 돌린다(채점 단일 출처).
+// 결과의 correct·misconception·miss 는 전부 이번 답에서 나온다. 형식이 어긋나면 undefined.
+export function scoreRetry(item: string, answer: RetryAnswer, judges: Judges): Item | undefined {
+  let full: JudgeAnswer;
+  if (answer.kind === 'poll') {
+    if (typeof answer.violation !== 'boolean') return undefined;
+    full = { kind: 'poll', tapped: answer.violation ? [item] : [] };
+  } else if (answer.kind === 'appeal') {
+    if (item !== 'why' || typeof answer.why !== 'string') return undefined;
+    full = { kind: 'appeal', why: answer.why };
+  } else if (answer.kind === 'source') {
+    const okChecks = Array.isArray(answer.checks) && answer.checks.length === 4 && answer.checks.every((v) => typeof v === 'boolean');
+    if (!okChecks || !['low', 'mid', 'high'].includes(answer.trust)) return undefined;
+    full = { kind: 'source', cards: { [item]: { checks: answer.checks, trust: answer.trust } } };
+  } else {
+    return undefined;
+  }
+  return scoreJudge(answer.kind, full, judges).items.find((i) => i.item === item);
 }
 
 // knows_<kind> 플래그 조건: 판별 항목 전부 정답 (PRD §4.4 "정답 판정").
