@@ -1,0 +1,1 @@
+Bright, gentle present-day epilogue theme for a story game: ukulele and glockenspiel, soft piano chords, light shaker, a tender flute melody, 92 BPM, major key, warm sunny morning feeling, calm and hopeful. Seamlessly loopable, about 30 seconds. Instrumental only, no vocals.

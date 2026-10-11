@@ -5,7 +5,7 @@ import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const IMG = join(ROOT, 'assets/img'), KIT = join(IMG, 'kit'), UIKIT = join(ROOT, '../시안/democracy-journey/ui/kit');
+const IMG = join(ROOT, 'assets/img'), KIT = join(IMG, 'kit'), UIKIT = join(ROOT, 'assets/ui-kit');
 const OUT = join(ROOT, 'src/assets/img');
 mkdirSync(OUT, { recursive: true });
 const jobs = []; // {src,name,max,q,half?,group}
