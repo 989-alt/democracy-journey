@@ -4,22 +4,22 @@ import { ICON } from '../../assets';
 import { sfx } from '../../audio/audio';
 import { CONTENT } from '../../content';
 import { COPY } from '../../content/copy';
-import { scoreJudge } from '../../engine/judge';
-import type { JudgeAnswer } from '../../engine/state';
 import { completeGrid } from './drag';
 import type { JudgeProps } from './drag';
-import { Feedback, JudgeFrame, verdictSfx } from './shared';
+import { Feedback, JudgeFrame, useVerdictSfx } from './shared';
 import './judge.css';
 
 type Cell = number | null;
 const short = (s: string) => s.split('(')[0].trim(); // '구체적인가? (…)' → '구체적인가?'
 
 // ④ 공약 채점표 — 3 후보 × 3 기준(1~5점). 9칸이 다 차야 투표할 수 있다(R14·R15).
-export function Pledge({ scene, onJudge }: JudgeProps) {
+// R30: 투표 = 채점 확정(onJudge). 피드백은 저장된 결과(result)로만 그린다.
+export function Pledge({ scene, result, onJudge, onNext }: JudgeProps) {
   const { candidates, criteria } = CONTENT.judges.pledge;
   const [grid, setGrid] = useState<Record<string, Cell[]>>(() => Object.fromEntries(candidates.map((c) => [c.id, [null, null, null]])));
   const [warn, setWarn] = useState(0);
-  const [answer, setAnswer] = useState<JudgeAnswer | null>(null);
+  useVerdictSfx(result);
+  const answer = !!result;
   const filled = candidates.reduce((n, c) => n + grid[c.id].filter((v) => v !== null).length, 0);
   const complete = completeGrid(grid, candidates.map((c) => c.id), criteria.length);
   const sum = (id: string) => grid[id].reduce<number>((a, v) => a + (v ?? 0), 0);
@@ -39,12 +39,12 @@ export function Pledge({ scene, onJudge }: JudgeProps) {
   const vote = (id: string) => {
     if (answer) return;
     if (!complete) { sfx('wrong'); setWarn((n) => n + 1); return; }
-    const a: JudgeAnswer = { kind: 'pledge', scores: Object.fromEntries(candidates.map((c) => [c.id, grid[c.id] as [number, number, number]])), vote: id };
-    setAnswer(a);
-    verdictSfx(scoreJudge('pledge', a, CONTENT.judges).items[0].correct);
+    onJudge({ kind: 'pledge', scores: Object.fromEntries(candidates.map((c) => [c.id, grid[c.id] as [number, number, number]])), vote: id });
   };
 
-  const ok = answer ? scoreJudge('pledge', answer, CONTENT.judges).items[0].correct : false;
+  const ok = result?.items[0]?.correct === true;
+  // 새로고침으로 복원하면 이 화면의 채점표는 비어 있다 → 합계는 채점표가 있을 때만 덧붙인다.
+  const sums = complete ? ` ${candidates.map((c) => `${c.name} ${sum(c.id)}${COPY.ui.point}`).join(' · ')}` : '';
 
   return (
     <JudgeFrame scene={scene} task={scene.text[scene.text.length - 1]}>
@@ -83,8 +83,8 @@ export function Pledge({ scene, onJudge }: JudgeProps) {
             {answer ? (
               <Feedback
                 placement="row"
-                items={[{ ok, text: `${ok ? COPY.feedback.pledgeRight : COPY.feedback.pledgeWrong} ${candidates.map((c) => `${c.name} ${sum(c.id)}${COPY.ui.point}`).join(' · ')}` }]}
-                onNext={() => onJudge(answer)}
+                items={[{ ok, text: `${ok ? COPY.feedback.pledgeRight : COPY.feedback.pledgeWrong}${sums}` }]}
+                onNext={onNext}
               />
             ) : warn ? (
               <div class="fb row warn" role="alert">

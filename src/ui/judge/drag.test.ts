@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CONTENT } from '../../content';
 import { pledgeComplete } from '../../engine/judge';
-import { completeGrid, dragReducer, hitZone, initDrag, MOVE_PX, retryTarget, sortSpots, toggle } from './drag';
+import { completeGrid, dragReducer, hitZone, initDrag, MOVE_PX, retryTargets, sortSpots, toggle } from './drag';
 import type { DragEv, DragState, Zone } from './drag';
 
 const zones: Zone[] = [
@@ -105,16 +105,22 @@ describe('판별 상수·조건', () => {
     const part = { ...scores, [c[2].id]: [3, 3, 0] as [number, number, number] };
     expect(pledgeComplete({ kind: 'pledge', scores: part, vote: c[0].id }, CONTENT.judges)).toBe(false);
   });
-  it('다시 보기: 큐가 비면 null(장면 생략), 장마다 지난 판별 종류만', () => {
-    expect(retryTarget([], 2)).toBeNull();
+  it('다시 보기(R29): 지난 장 판별의 poll/appeal/source 문항 전부, 큐 순서, pledge·organ 제외, 이 장에서 답한 문항 제외', () => {
+    expect(retryTargets([], [], 2)).toEqual([]);
     const q = [
+      { kind: 'poll' as const, item: 'group', attempts: 0 },
+      { kind: 'poll' as const, item: 'stack', attempts: 0 },
+      { kind: 'poll' as const, item: 'trap_home', attempts: 1 },
       { kind: 'appeal' as const, item: 'why', attempts: 0 },
-      { kind: 'poll' as const, item: 'group', attempts: 1 },
+      { kind: 'pledge' as const, item: 'vote', attempts: 0 },
+      { kind: 'organ' as const, item: 'card:law', attempts: 0 },
     ];
-    expect(retryTarget(q, 2)?.item).toBe('group');
-    expect(retryTarget(q, 3)?.kind).toBe('appeal');
-    expect(retryTarget(q, 4)).toBeNull();
-    expect(retryTarget(q, 5)).toBeNull();
+    expect(retryTargets(q, [], 2).map((x) => x.item)).toEqual(['group', 'stack', 'trap_home']); // appeal 은 2장 판별 → 3장부터
+    const log = [{ t: 1, type: 'retry' as const, chapter: 2 as const, kind: 'poll' as const, item: 'group', correct: false, attempt: 2 }];
+    expect(retryTargets(q, log, 2).map((x) => x.item)).toEqual(['stack', 'trap_home']); // 같은 장에서 이미 답함
+    expect(retryTargets(q, log, 3).map((x) => x.item)).toEqual(['group', 'stack', 'trap_home', 'why']); // 다음 장에서는 다시
+    expect(retryTargets(q, [], 5).map((x) => x.item)).toEqual(['group', 'stack', 'trap_home', 'why']); // pledge(4장)·organ 은 끝까지 제외
+    expect(retryTargets([{ kind: 'poll', item: 'x', attempts: 2 }], [], 4)).toEqual([]);
   });
   it('핫스팟은 x 순으로 그려 DOM 순서가 함정 위치를 드러내지 않는다', () => {
     const before = spots.map((s) => s.id);

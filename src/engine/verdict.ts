@@ -4,7 +4,7 @@ import type { LogEvent } from './state';
 
 // 완주 판정식 S1~S10 (PRD §7). 키마다 독립 검사 — fails 에 실패한 키만 담는다.
 // "최종 attempt" = (kind, item) 별로 attempt 가 가장 큰 judge 이벤트(같으면 나중 것).
-function finals(log: LogEvent[], kind: JudgeKind): Map<string, LogEvent> {
+export function finals(log: LogEvent[], kind: JudgeKind): Map<string, LogEvent> {
   const m = new Map<string, LogEvent>();
   for (const e of log) {
     if (e.type !== 'judge' || e.kind !== kind || e.item === undefined) continue;
@@ -14,6 +14,8 @@ function finals(log: LogEvent[], kind: JudgeKind): Map<string, LogEvent> {
   return m;
 }
 
+export const JUDGE_KINDS: JudgeKind[] = ['poll', 'appeal', 'source', 'pledge', 'organ'];
+
 export function verdict(log: LogEvent[]): { pass: boolean; fails: string[] } {
   const fails: string[] = [];
   const check = (key: string, ok: boolean) => { if (!ok) fails.push(key); };
@@ -22,8 +24,7 @@ export function verdict(log: LogEvent[]): { pass: boolean; fails: string[] } {
 
   check('S1', [1, 2, 3, 4, 5].every((c) => log.some((e) => e.type === 'chapter_end' && e.chapter === c)));
 
-  const kinds: JudgeKind[] = ['poll', 'appeal', 'source', 'pledge', 'organ'];
-  check('S2', kinds.every((k) => log.some((e) => e.type === 'judge' && e.kind === k)));
+  check('S2', JUDGE_KINDS.every((k) => log.some((e) => e.type === 'judge' && e.kind === k)));
 
   const poll = finals(log, 'poll');
   const violations = J.poll.spots.filter((s) => s.violation !== null).map((s) => s.id);
@@ -50,7 +51,7 @@ export function verdict(log: LogEvent[]): { pass: boolean; fails: string[] } {
   const bad = new Set(['M14', 'M11', 'M25']);
   const latestChoice = new Map<string, LogEvent>();
   for (const e of log) if (e.type === 'choice' && e.scene) latestChoice.set(e.scene, e);
-  const pool = [...kinds.flatMap((k) => [...finals(log, k).values()]), ...latestChoice.values()];
+  const pool = [...JUDGE_KINDS.flatMap((k) => [...finals(log, k).values()]), ...latestChoice.values()];
   check('S10', !pool.some((e) => e.misconception && bad.has(e.misconception)));
 
   return { pass: fails.length === 0, fails };

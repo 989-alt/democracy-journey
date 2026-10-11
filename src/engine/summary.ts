@@ -3,7 +3,8 @@ import { COPY } from '../content/copy';
 import type { Chapter, JudgeKind, TimelineEvent } from '../content/types';
 import { clear } from './save';
 import type { Action, LogEvent, State } from './state';
-import { verdict } from './verdict';
+import { sortSpots } from '../ui/judge/drag';
+import { finals, JUDGE_KINDS, verdict } from './verdict';
 
 // 결과 화면 요약 — 순수 함수. localStorage 를 읽지 않는다(R10: 선택은 평가하지 않고, 판별 정답률과 연표만 낸다).
 export const GAP_LIMIT_MS = 10 * 60 * 1000;
@@ -40,8 +41,8 @@ function describe(kind: JudgeKind, item: string): { question: string; answer: st
   switch (kind) {
     case 'poll': {
       const s = J.poll.spots.find((x) => x.id === item);
-      const n = J.poll.spots.findIndex((x) => x.id === item) + 1;
-      return { question: `${n}번 장면은 선거 원칙을 어긴 곳일까요?`, answer: s?.explain ?? '' };
+      const n = sortSpots(J.poll.spots).findIndex((x) => x.id === item) + 1; // 화면의 '그림 속 장면 n' 과 같은 번호
+      return { question: COPY.ui.wrongPollQ(n), answer: s?.explain ?? '' };
     }
     case 'appeal':
       return { question: `${J.appeal.situation} ${COPY.ui.why}`, answer: J.appeal.why.find((w) => w.correct)?.label ?? '' };
@@ -54,15 +55,15 @@ function describe(kind: JudgeKind, item: string): { question: string; answer: st
       };
     }
     case 'pledge':
-      return { question: '세 후보의 공약을 채점표로 따져 보고 투표하기', answer: '내 채점표에서 총점이 가장 높은 후보에게 투표해요.' };
+      return { question: COPY.ui.wrongPledgeQ, answer: COPY.ui.wrongPledgeA };
     case 'organ': {
       if (item.startsWith('card:')) {
         const c = J.organ.cards.find((x) => x.id === item.slice(5));
-        return { question: `'${c?.label ?? item}' — 어느 기관이 하는 일일까요?`, answer: c ? ORGAN[c.organ] : '' };
+        return { question: COPY.ui.wrongOrganCardQ(c?.label ?? item), answer: c ? ORGAN[c.organ] : '' };
       }
       const c = J.organ.checks.find((x) => x.id === item.slice(6));
       return {
-        question: '이 견제는 어느 기관이 어느 기관에 하는 것일까요?',
+        question: COPY.ui.wrongOrganCheckQ,
         answer: c ? `'${c.label}' — ${ORGAN[c.from]} → ${ORGAN[c.to]}` : '',
       };
     }
@@ -72,22 +73,16 @@ function describe(kind: JudgeKind, item: string): { question: string; answer: st
 export function summarize(state: State): Summary {
   const log = state.log;
 
-  // (kind,item) 별 최종 attempt: attempt 가 가장 큰 judge/retry 이벤트(같으면 나중 것).
-  const finals = new Map<string, LogEvent>();
-  const order: string[] = [];
-  for (const e of log) {
-    if ((e.type !== 'judge' && e.type !== 'retry') || !e.kind || e.item === undefined) continue;
-    const key = `${e.kind}|${e.item}`;
-    const p = finals.get(key);
-    if (!p) order.push(key);
-    if (!p || (e.attempt ?? 1) >= (p.attempt ?? 1)) finals.set(key, e);
-  }
+  // (kind,item) 별 최종 attempt — 판정식(verdict)과 같은 finals 를 쓴다. 다시 보기도 같은 attempt 의 judge 이벤트를 남긴다.
   const wrongItems: WrongItem[] = [];
   let correct = 0;
-  for (const key of order) {
-    const e = finals.get(key)!;
-    if (e.correct) correct++;
-    else wrongItems.push({ kind: e.kind!, item: e.item!, ...describe(e.kind!, e.item!) });
+  let total = 0;
+  for (const kind of JUDGE_KINDS) {
+    for (const [item, e] of finals(log, kind)) {
+      total++;
+      if (e.correct) correct++;
+      else wrongItems.push({ kind, item, ...describe(kind, item) });
+    }
   }
 
   let maxChapter = 1;
@@ -105,7 +100,7 @@ export function summarize(state: State): Summary {
   return {
     playMs: playTime(log),
     reachedChapter: state.stage === 'done' ? '완주' : (maxChapter as Chapter),
-    judged: { total: order.length, correct },
+    judged: { total, correct },
     wrongItems,
     timeline: [...CONTENT.timeline], // M23: 고정 순서
     memos,

@@ -1,6 +1,6 @@
 // 판별 공용 순수 함수. DOM 을 모른다 — Pointer Events 핸들러가 이 상태 기계에 좌표만 넘긴다.
-import type { JudgeKind, Scene } from '../../content/types';
-import type { JudgeAnswer, RetryItem } from '../../engine/state';
+import type { Scene } from '../../content/types';
+import type { JudgeAnswer, JudgeResult } from '../../engine/state';
 
 export interface Zone { id: string; x: number; y: number; w: number; h: number }
 
@@ -62,14 +62,12 @@ export function dragReducer(s: DragState, ev: DragEv): DragState {
 // 목록에서 id 를 켜고 끈다(핫스팟 토글).
 export const toggle = (list: string[], id: string): string[] => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-// 다시 보기 장면이 묻는 판별 종류: 2장→1장 판별, 3장→2장, 4장→3장. 에필로그 뒤는 결과 화면 몫.
-export const RETRY_KIND: Record<number, JudgeKind> = { 2: 'poll', 3: 'appeal', 4: 'source' };
+// 다시 보기 문항 목록은 리듀서와 같은 규칙을 쓰도록 엔진에 둔다.
+export { retryTargets } from '../../engine/state';
 
-// 다시 보기 장면에서 낼 문제 1개. 큐에 그 종류가 없으면 null → 장면 생략.
-export function retryTarget(queue: RetryItem[], chapter: number): RetryItem | null {
-  const kind = RETRY_KIND[chapter];
-  return (kind ? queue.find((q) => q.kind === kind) : undefined) ?? null;
-}
+// 투표소 그림 좌표계(1536×1024). Poll·Retry 가 같이 쓴다.
+export const POLL_W = 1536;
+export const POLL_H = 1024;
 
 // 핫스팟은 왼쪽→오른쪽 순으로 그려(DOM·탭 순서) 그림 속 위치로 함정을 짐작할 수 없게 한다.
 export const sortSpots = <T extends { x: number; y: number }>(spots: T[]): T[] => [...spots].sort((a, b) => a.x - b.x || a.y - b.y);
@@ -78,6 +76,6 @@ export const sortSpots = <T extends { x: number; y: number }>(spots: T[]): T[] =
 export const completeGrid = (grid: Record<string, (number | null)[]>, ids: string[], cols: number): boolean =>
   ids.every((id) => grid[id]?.length === cols && grid[id].every((v) => v !== null));
 
-// 판별 화면 공통 props. app.tsx 가 onJudge 에 dispatch({type:'judge'}) 를 묶어 내린다.
-// 리듀서는 judge 액션이 오면 곧바로 다음 장면으로 넘어가므로, 화면은 피드백 메모를 먼저 보여 주고 '다음' 에서 onJudge 를 부른다.
-export interface JudgeProps { scene: Scene; onJudge: (answer: JudgeAnswer) => void }
+// 판별 화면 공통 props(R30). onJudge = dispatch({type:'judge'}) — 리듀서가 채점·기록만 하고 전진하지 않는다.
+// 화면은 result(state.judges[kind])가 있으면 입력을 잠그고 그 결과로 피드백을 그린다. '다음' = onNext.
+export interface JudgeProps { scene: Scene; result?: JudgeResult; onJudge: (answer: JudgeAnswer) => void; onNext: () => void }

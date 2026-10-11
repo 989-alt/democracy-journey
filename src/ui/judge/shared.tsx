@@ -1,9 +1,11 @@
-import { useRef } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { BG, ICON } from '../../assets';
 import { sfx } from '../../audio/audio';
 import { COPY } from '../../content/copy';
 import type { Scene } from '../../content/types';
+import { judgePassed } from '../../engine/judge';
+import type { JudgeResult } from '../../engine/state';
 import './judge.css';
 
 // 판별·비교·다시 보기 공통 틀: 장 배경(채도 단계 적용) + 상단 띠(과제 한 줄).
@@ -18,6 +20,16 @@ export function JudgeFrame({ scene, task, children }: { scene: Scene; task: stri
 }
 
 export const verdictSfx = (ok: boolean) => sfx(ok ? 'correct' : 'wrong');
+
+// 채점 결과가 이 화면에서 새로 생겼을 때만(복원으로 이미 있던 결과는 아님) 맞음/틀림 소리.
+export function useVerdictSfx(result: JudgeResult | undefined): void {
+  const had = useRef(!!result);
+  useEffect(() => {
+    if (!result || had.current) return;
+    had.current = true;
+    verdictSfx(judgePassed(result));
+  }, [result]);
+}
 
 export interface FeedbackItem { ok: boolean; text: string; label?: string }
 

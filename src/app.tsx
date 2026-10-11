@@ -3,9 +3,9 @@ import { ICON, UI } from './assets';
 import { sfx, unlock, playBgm } from './audio/audio';
 import type { Face, JudgeKind, Option } from './content/types';
 import { reduce } from './engine/reducer';
-import { load, save } from './engine/save';
+import { clear, load, save } from './engine/save';
 import { currentScene, initialState, isLocked } from './engine/state';
-import type { JudgeAnswer } from './engine/state';
+import type { Action, JudgeAnswer } from './engine/state';
 import { ChapterTitle } from './ui/ChapterTitle';
 import { Appeal } from './ui/judge/Appeal';
 import { Compare } from './ui/judge/Compare';
@@ -21,6 +21,7 @@ import { faceFor } from './ui/Portrait';
 import { Scene } from './ui/Scene';
 import { Title } from './ui/Title';
 import { Toast } from './ui/Toast';
+import { COPY } from './content/copy';
 import './ui/scene.css';
 
 const SEED = Date.now();
@@ -49,7 +50,8 @@ export function App() {
   const [toast, setToast] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const faceTimer = useRef<ReturnType<typeof setTimeout>>();
-  const [saved] = useState(() => load());
+  // R32: 저장본은 state 로 들고 있다가 '시작'·'다시하기' 때 지운다(지운 저장본이 이어하기로 되살아나지 않게).
+  const [saved, setSaved] = useState(() => load());
 
   const sc = currentScene(state);
   const chapter = sc.chapter;
@@ -83,18 +85,24 @@ export function App() {
     faceTimer.current = setTimeout(() => setFace('calm'), 1200);
   };
 
+  // 첫 선택이 확정이다(R28): 메모가 떠 있는 동안 다른 카드·숫자키는 무시한다.
   const choose = (optionId: string) => {
-    if (state.stage !== 'play' || (sc.kind !== 'story' && sc.kind !== 'culture')) return;
+    if (state.stage !== 'play' || (sc.kind !== 'story' && sc.kind !== 'culture') || picked) return;
     const opt = sc.options.find((o) => o.id === optionId);
     if (!opt || isLocked(opt, state.stats) || state.chosen[sc.id] !== undefined) return;
+    if (sc.kind === 'culture') { // 맞음/틀림 메모를 본 뒤 '다음' 에서 dispatch (R19·R28)
+      sfx(optionId === sc.culture?.answer ? 'correct' : 'wrong');
+      setPicked(optionId);
+      return;
+    }
     sfx('tap');
-    if (sc.kind === 'culture') { setPicked(optionId); return; } // 까닭 메모를 본 뒤 '다음' 에서 dispatch (R19)
+    if (opt.misconception) { setPicked(optionId); return; } // 사실 교정 메모 뒤 '다음' 에서 dispatch (R31)
     showFace(opt.delta);
     dispatch({ type: 'choose', sceneId: sc.id, optionId, t: Date.now() });
   };
 
   const confirm = () => {
-    if (!picked || sc.kind !== 'culture') return;
+    if (!picked || (sc.kind !== 'culture' && sc.kind !== 'story')) return;
     const opt = sc.options.find((o) => o.id === picked);
     if (!opt) return;
     showFace(opt.delta);
@@ -110,7 +118,7 @@ export function App() {
       if (e.key >= '1' && e.key <= '3') {
         const o = sc.options[Number(e.key) - 1];
         if (o) choose(o.id);
-      } else if (e.key === 'Enter' && picked && sc.kind === 'culture') {
+      } else if (e.key === 'Enter' && picked && (sc.kind === 'culture' || sc.kind === 'story')) {
         e.preventDefault();
         confirm();
       } else if (e.key === 'Enter' && (sc.kind === 'judge' || sc.kind === 'compare' || sc.kind === 'retry')) {
@@ -131,34 +139,33 @@ export function App() {
     screen = (
       <Title
         resumeChapter={saved ? currentScene(saved).chapter : null}
-        onStart={() => { sfx('tap'); dispatch({ type: 'start', seed: SEED, t: Date.now() }); }}
+        onStart={() => { sfx('tap'); clear(); setSaved(null); dispatch({ type: 'start', seed: SEED, t: Date.now() }); }}
         onResume={() => { sfx('tap'); if (saved) dispatch({ type: 'restore', state: saved, t: Date.now() }); }}
       />
     );
   } else if (state.stage === 'done') {
-    screen = <Result state={state} dispatch={dispatch} />;
+    const resultDispatch = (a: Action) => { if (a.type === 'reset') setSaved(null); dispatch(a); }; // clearAndReset 이 clear() 한다
+    screen = <Result state={state} dispatch={resultDispatch} />;
   } else if (sc.kind === 'story' || sc.kind === 'culture') {
     screen = <Scene scene={sc} state={state} face={face} picked={picked} onChoose={choose} onConfirm={confirm} />;
   } else if (sc.kind === 'title') {
     screen = <ChapterTitle scene={sc} onDone={next} />;
   } else if (sc.kind === 'judge' && sc.judge) {
-    // 리듀서는 judge 액션에서 곧바로 다음 장면으로 넘어간다 → 화면이 피드백 메모를 먼저 보여 주고 '다음' 에서 이 콜백을 부른다.
+    // R30: judge 액션은 채점·기록만(곧바로 자동 저장), 화면은 state.judges[kind] 로 피드백을 그리고 '다음' 이 next 를 보낸다.
     const Judge = JUDGE_SCREEN[sc.judge];
     const kind = sc.judge;
-    screen = <Judge key={sc.id} scene={sc} onJudge={(answer: JudgeAnswer) => dispatch({ type: 'judge', kind, answer, t: Date.now() })} />;
+    screen = <Judge key={sc.id} scene={sc} result={state.judges[kind]} onJudge={(answer: JudgeAnswer) => dispatch({ type: 'judge', kind, answer, t: Date.now() })} onNext={next} />;
   } else if (sc.kind === 'compare') {
     screen = <Compare key={sc.id} scene={sc} onNext={next} />;
-  } else if (sc.kind === 'retry') {
-    screen = <Retry key={sc.id} scene={sc} state={state} onRetry={(kind, item, correct) => dispatch({ type: 'retry', kind, item, correct, t: Date.now() })} onNext={next} />;
   } else {
-    screen = <div class="placeholder">{sc.kind}</div>;
+    screen = <Retry key={sc.id} scene={sc} state={state} onRetry={(kind, item, correct) => dispatch({ type: 'retry', kind, item, correct, t: Date.now() })} onNext={next} />;
   }
 
   return (
     <div class="stage" style={{ ...IMG_VARS, '--sat-step': `var(--sat-${state.satStep})` }}>
       {screen}
       <div class="mute"><Mute /></div>
-      <Toast n={toast} text="저장됨" />
+      <Toast n={toast} text={COPY.ui.saved} />
     </div>
   );
 }

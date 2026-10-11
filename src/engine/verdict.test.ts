@@ -5,6 +5,7 @@ import { reduce } from './reducer';
 import { currentScene, initialState } from './state';
 import type { Action, JudgeAnswer, LogEvent, State } from './state';
 import { verdict } from './verdict';
+import { retryTargets } from './state';
 
 const J = CONTENT.judges;
 
@@ -28,7 +29,8 @@ function correctAnswer(kind: JudgeKind): JudgeAnswer {
 }
 
 // 실제 리듀서로 CONTENT 를 끝까지 돈다. 장면 선택은 pick 이 정한다(기본: 잠기지 않고 오개념 없는 첫 선택지).
-function play(opts: { pick?: (s: State) => string; answer?: (k: JudgeKind) => JudgeAnswer } = {}): State {
+// retry 를 주면 다시 보기 장면마다 큐의 문항 전부를 그 답(correct)으로 다시 답한다(R29).
+function play(opts: { pick?: (s: State) => string; answer?: (k: JudgeKind) => JudgeAnswer; retry?: (kind: JudgeKind, item: string) => boolean } = {}): State {
   let s = reduce(initialState(1), { type: 'start', seed: 1, t: 0 });
   let t = 0;
   for (let i = 0; i < 400 && s.stage === 'play'; i++) {
@@ -38,9 +40,14 @@ function play(opts: { pick?: (s: State) => string; answer?: (k: JudgeKind) => Ju
       const free = sc.options.find((o) => !o.misconception && !(o.lock && s.stats[o.lock.stat] < o.lock.min))!;
       const id = sc.kind === 'culture' ? sc.culture!.answer : (opts.pick?.(s) ?? free.id);
       a = { type: 'choose', sceneId: sc.id, optionId: id, t: ++t };
-    } else if (sc.kind === 'judge') {
+    } else if (sc.kind === 'judge' && !s.judges[sc.judge!]) {
       a = { type: 'judge', kind: sc.judge!, answer: (opts.answer ?? correctAnswer)(sc.judge!), t: ++t };
-    } else a = { type: 'next', t: ++t };
+    } else {
+      if (sc.kind === 'retry' && opts.retry) {
+        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) s = reduce(s, { type: 'retry', kind: q.kind, item: q.item, correct: opts.retry(q.kind, q.item), t: ++t });
+      }
+      a = { type: 'next', t: ++t };
+    }
     s = reduce(s, a);
   }
   return s;
@@ -128,20 +135,21 @@ describe('S6 — 내 채점표 기준 (R15)', () => {
 describe('최종 attempt 규칙', () => {
   it('처음 틀려도 다시 보기에서 맞히면 S3·S10 통과', () => {
     // 처음에 거소 투표 함정(M6)과 비밀 위반 하나를 틀리고, 다시 보기로 바로잡는다
-    let s = play({ answer: (k) => (k === 'poll' ? { kind: 'poll', tapped: ['bribe', 'stack', 'proxy', 'trap_home'] } : correctAnswer(k)) });
-    expect(verdict(s.log).fails).toEqual(['S3']);
-    for (const item of ['group', 'trap_home']) s = reduce(s, { type: 'retry', kind: 'poll', item, correct: true, t: 999 });
+    const answer = (k: JudgeKind): JudgeAnswer => (k === 'poll' ? { kind: 'poll', tapped: ['bribe', 'stack', 'proxy', 'trap_home'] } : correctAnswer(k));
+    expect(verdict(play({ answer }).log).fails).toEqual(['S3']);
+    const s = play({ answer, retry: () => true });
+    // 2장 다시 보기에서 큐의 poll 문항 두 개를 모두 다시 물었다(R29)
+    expect(s.log.filter((e) => e.type === 'retry' && e.chapter === 2).map((e) => e.item)).toEqual(['group', 'trap_home']);
     expect(verdict(s.log)).toEqual({ pass: true, fails: [] });
   });
   it('호소 이유 M11 은 다시 보기에서 맞히면 사라진다', () => {
-    let s = play({ answer: (k) => (k === 'appeal' ? { kind: 'appeal', why: 'strong' } : correctAnswer(k)) });
-    expect(verdict(s.log).fails).toEqual(['S4', 'S10']);
-    s = reduce(s, { type: 'retry', kind: 'appeal', item: 'why', correct: true, t: 999 });
-    expect(verdict(s.log).pass).toBe(true);
+    const answer = (k: JudgeKind): JudgeAnswer => (k === 'appeal' ? { kind: 'appeal', why: 'strong' } : correctAnswer(k));
+    expect(verdict(play({ answer }).log).fails).toEqual(['S4', 'S10']);
+    expect(verdict(play({ answer, retry: () => true }).log).pass).toBe(true);
   });
   it('다시 보기에서 또 틀리면 M11 이 이어져 실패 유지', () => {
-    let s = play({ answer: (k) => (k === 'appeal' ? { kind: 'appeal', why: 'strong' } : correctAnswer(k)) });
-    s = reduce(s, { type: 'retry', kind: 'appeal', item: 'why', correct: false, t: 999 });
+    const s = play({ answer: (k) => (k === 'appeal' ? { kind: 'appeal', why: 'strong' } : correctAnswer(k)), retry: () => false });
+    expect(s.log.filter((e) => e.type === 'retry' && e.item === 'why').map((e) => [e.chapter, e.attempt])).toEqual([[3, 2], [4, 3]]); // 다음 장·그다음 장, 최대 2회
     expect(verdict(s.log).fails).toEqual(['S4', 'S10']);
   });
 });

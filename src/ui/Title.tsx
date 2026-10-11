@@ -15,7 +15,7 @@ export function Title({ resumeChapter, onStart, onResume }: {
         <div class="title-btns">
           {resumeChapter !== null ? (
             <button type="button" class="btn" onClick={onResume}>
-              <span>{COPY.ui.resume} ({resumeChapter === 5 ? '에필로그' : `${resumeChapter}장`})</span>
+              <span>{COPY.ui.resume} ({resumeChapter === 5 ? COPY.ui.epilogue : COPY.ui.chapterN(resumeChapter)})</span>
             </button>
           ) : null}
           <button type="button" class="btn" onClick={onStart}><span>{COPY.ui.start}</span></button>

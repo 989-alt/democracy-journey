@@ -56,7 +56,13 @@ export async function playBgm(n: Track): Promise<void> {
   cur = n;
   const c = init();
   const out = master;
-  const buf = await load(n);
+  let buf: AudioBuffer;
+  try {
+    buf = await load(n);
+  } catch (e) {
+    if (cur === n) cur = 0; // 디코드 실패 → 다음 호출에서 다시 시도
+    throw e;
+  }
   if (cur !== n || !out) return; // 로딩 중 다른 트랙으로 바뀜
   const t = c.currentTime;
   if (curGain && curSrc) {
@@ -76,13 +82,11 @@ export async function playBgm(n: Track): Promise<void> {
   curGain = g;
 }
 
-export type SfxName = 'tap' | 'correct' | 'wrong' | 'save' | 'bleed';
+export type SfxName = 'tap' | 'correct' | 'wrong';
 const NOTES: Record<SfxName, [number, number, OscillatorType][]> = {
   tap: [[660, 0.06, 'triangle']],
   correct: [[523, 0.12, 'sine'], [784, 0.2, 'sine']],
   wrong: [[220, 0.18, 'sawtooth'], [165, 0.25, 'sawtooth']],
-  save: [[880, 0.08, 'sine'], [1175, 0.1, 'sine']],
-  bleed: [[330, 0.5, 'sine']],
 };
 export function sfx(name: SfxName): void {
   if (!ctx || ctx.state !== 'running' || muted || !master) return;

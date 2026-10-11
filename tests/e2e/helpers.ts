@@ -6,8 +6,13 @@ import { sortSpots } from '../../src/ui/judge/drag';
 
 type Trust = 'low' | 'mid' | 'high';
 export interface SourceSpec { checks: boolean[]; trust: Trust }
-export interface Overrides { source?: Record<string, SourceSpec>; onFeedback?: (kind: JudgeKind) => Promise<void> }
-export interface PlayOpts { stopAtTitle3?: boolean; over?: Overrides }
+export interface Overrides {
+  source?: Record<string, SourceSpec>;
+  poll?: string[]; // 누를 spot id(기본: 위반 4곳)
+  onFeedback?: (kind: JudgeKind) => Promise<void>;
+  onRetryItem?: (kind: JudgeKind, item: string, index: number) => Promise<void>; // 다시 보기 문항이 뜰 때마다(장면 안 순번)
+}
+export interface PlayOpts { stopAtTitle3?: boolean; until?: () => Promise<boolean>; over?: Overrides }
 
 const J = CONTENT.judges;
 const FB = '.fb [data-primary], .fside [data-primary]';
@@ -41,7 +46,14 @@ export async function chooseFirst(page: Page) {
   let i = sc.kind === 'culture' ? sc.options.findIndex((o) => o.id === sc.culture!.answer) : sc.options.findIndex((o, k) => !o.misconception && !info.locked[k]);
   if (i < 0 || info.locked[i]) throw new Error(`고를 카드 없음: ${sc.id}`);
   await tap(page, page.locator('.cards .card').nth(i));
-  if (sc.kind === 'culture') await tap(page, page.locator('.culture-pick .btn'));
+  if (sc.kind === 'culture') await tap(page, page.locator('.dialog.memo .btn'));
+}
+
+// 지금 화면의 story/culture 장면 id(카드 라벨로 찾는다). 아니면 null.
+export async function sceneOnScreen(page: Page): Promise<string | null> {
+  const labels = await page.evaluate(() => [...document.querySelectorAll('.stage .cards .card .t')].map((e) => e.textContent ?? ''));
+  if (!labels.length) return null;
+  return CONTENT.scenes.find((s) => s.options.length === labels.length && s.options.every((o, i) => o.label === labels[i]))?.id ?? null;
 }
 
 const correctSource = (c: SourceCard): SourceSpec => ({ checks: [...c.answerChecks], trust: c.answerTrust });
@@ -55,7 +67,8 @@ async function answerSourceCard(page: Page, c: SourceCard, spec: SourceSpec) {
 export async function answerJudge(page: Page, kind: JudgeKind, over: Overrides = {}) {
   if (kind === 'poll') {
     const spots = sortSpots(J.poll.spots);
-    for (const [i, s] of spots.entries()) if (s.violation !== null) await tap(page, page.getByRole('button', { name: `${COPY.ui.spotLabel} ${i + 1}`, exact: true }));
+    const want = over.poll ?? spots.filter((s) => s.violation !== null).map((s) => s.id);
+    for (const [i, s] of spots.entries()) if (want.includes(s.id)) await tap(page, page.getByRole('button', { name: `${COPY.ui.spotLabel} ${i + 1}`, exact: true }));
     await clickPrimary(page);
   } else if (kind === 'appeal') {
     for (let i = 0; i < J.appeal.cards.length; i++) await tap(page, page.locator('.flipcard').nth(i));
@@ -93,30 +106,51 @@ const screenOf = (page: Page) => page.evaluate((): Screen => {
 });
 
 // 시드 완주 루프. 화면을 읽어 다음 동작을 고른다. 결과 화면(또는 3장 제목)에서 멈춘다.
-export async function play(page: Page, { stopAtTitle3, over = {} }: PlayOpts = {}) {
+export async function play(page: Page, opts: PlayOpts = {}) {
+  const { stopAtTitle3, over = {} } = opts;
   const title3 = CONTENT.scenes.find((s) => s.id === 'c3-s01')!.text[0];
   for (let step = 0; step < 400; step++) {
     const s = await screenOf(page);
     if (s === 'result') return;
+    if (opts.until && (await opts.until())) return;
     if (s === 'none') { await page.waitForTimeout(100); continue; }
     if (s === 'title') {
       if (stopAtTitle3 && (await page.locator('.chtitle h1').textContent()) === title3) return;
       await page.waitForSelector('.chtitle', { state: 'detached', timeout: 5000 }); // 1.5초 자동 진행
     } else if (s === 'scene') await chooseFirst(page);
     else if (s === 'compare') await clickPrimary(page);
-    else if (s === 'retry') {
-      // 큐에 없으면 곧바로 넘어가 화면이 사라진다. 있으면 정보 카드만 다룬다.
-      await page.waitForTimeout(150);
-      const g = page.locator('.rbody .icard');
-      if ((await g.count()) === 0) continue;
-      const src = await g.getAttribute('aria-label');
-      const c = J.source.cards.find((x) => x.source === src)!;
-      await answerSourceCard(page, c, correctSource(c));
-      await clickPrimary(page);
-      await clickPrimary(page, FB);
-    } else await answerJudge(page, s, over);
+    else if (s === 'retry') await answerRetry(page, over);
+    else await answerJudge(page, s, over);
   }
   throw new Error('완주 루프 400 단계 초과');
+}
+
+// 다시 보기(R29): 큐의 문항을 하나씩 모두 정답으로 답한다. 큐가 비면 화면이 곧바로 넘어간다.
+async function answerRetry(page: Page, over: Overrides) {
+  for (let n = 0; n < 20; n++) {
+    const body = page.locator('.stage .rbody');
+    await page.waitForTimeout(150);
+    if ((await body.count()) === 0) return;
+    const kind = (await body.getAttribute('data-kind')) as JudgeKind;
+    const item = (await body.getAttribute('data-item'))!;
+    await over.onRetryItem?.(kind, item, n);
+    if (kind === 'poll') {
+      const s = J.poll.spots.find((x) => x.id === item)!;
+      await tap(page, page.locator('.rbody .two .btn').nth(s.violation !== null ? 0 : 1));
+    } else if (kind === 'appeal') {
+      await tap(page, page.locator('.rbody .grid3 .card').nth(J.appeal.why.findIndex((w) => w.correct)));
+    } else {
+      const c = J.source.cards.find((x) => x.id === item)!;
+      await answerSourceCard(page, c, correctSource(c));
+      await clickPrimary(page);
+    }
+    await clickPrimary(page, FB);
+    // 다음 문항(다른 data-item) 또는 다음 장면이 될 때까지
+    await page.waitForFunction(([k, i]) => {
+      const b = document.querySelector('.stage .rbody');
+      return !b || b.getAttribute('data-kind') !== k || b.getAttribute('data-item') !== i;
+    }, [kind, item]);
+  }
 }
 
 export async function readSave(page: Page) {

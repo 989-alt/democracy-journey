@@ -7,7 +7,7 @@ import { scoreJudge } from '../../engine/judge';
 import type { State } from '../../engine/state';
 import { SourceCard } from './Source';
 import type { Trust } from './Source';
-import { retryTarget } from './drag';
+import { POLL_H as H, POLL_W as W, retryTargets } from './drag';
 import { Feedback, JudgeFrame, verdictSfx } from './shared';
 import './judge.css';
 
@@ -20,29 +20,35 @@ interface Props {
 interface Done { correct: boolean; text: string }
 
 const J = CONTENT.judges;
-const W = 1536;
-const H = 1024;
 
-// 다시 보기 — retryQueue 에서 문제 1개만 다시 묻는다(2장 poll · 3장 appeal · 4장 source). 큐에 없으면 곧바로 다음으로 넘긴다
-// (리듀서는 retry 장면을 생략하지 않는다).
+// 다시 보기(R29) — 큐의 poll/appeal/source 문항(attempts<2)을 모두 차례로 다시 묻는다. 문항마다 한 번 답하고 피드백 '다음' 으로
+// 다음 문항, 마지막 문항 뒤 '다음' 은 장면을 넘긴다. 큐가 비면 곧바로 다음으로 넘긴다(리듀서는 retry 장면을 생략하지 않는다).
 export function Retry({ scene, state, onRetry, onNext }: Props) {
-  const [target] = useState(() => retryTarget(state.retryQueue, scene.chapter)); // 답하면 큐가 바뀌므로 처음 값을 잡아 둔다
+  const [targets] = useState(() => retryTargets(state.retryQueue, state.log, scene.chapter)); // 답하면 큐가 바뀌므로 처음 목록을 잡아 둔다
+  const [step, setStep] = useState(0);
   const [done, setDone] = useState<Done | null>(null);
   const skipped = useRef(false);
+  const target = targets[step];
 
   useEffect(() => {
-    if (target || skipped.current) return;
+    if (targets.length || skipped.current) return;
     skipped.current = true;
     onNext();
-  }, [target]);
+  }, [targets]);
   if (!target) return null;
 
   const { kind, item } = target;
+  const last = step === targets.length - 1;
   const answer = (correct: boolean, text: string) => {
     if (done) return;
     setDone({ correct, text });
     verdictSfx(correct);
     onRetry(kind, item, correct);
+  };
+  const after = () => {
+    if (last) { onNext(); return; }
+    setDone(null);
+    setStep(step + 1);
   };
 
   let body;
@@ -84,9 +90,9 @@ export function Retry({ scene, state, onRetry, onNext }: Props) {
   }
 
   return (
-    <JudgeFrame scene={scene} task={`${COPY.ui.retryStart} · ${scene.text[0]}`}>
-      <div class="jbody rbody">{body}</div>
-      {done ? <Feedback placement="bottom" items={[{ ok: done.correct, text: done.text }]} onNext={onNext} /> : null}
+    <JudgeFrame scene={scene} task={`${COPY.ui.retryStart} ${step + 1} / ${targets.length} · ${scene.text[0]}`}>
+      <div class="jbody rbody" key={`${kind}|${item}`} data-kind={kind} data-item={item}>{body}</div>
+      {done ? <Feedback key={`${kind}|${item}`} placement="bottom" items={[{ ok: done.correct, text: done.text }]} onNext={after} /> : null}
     </JudgeFrame>
   );
 }

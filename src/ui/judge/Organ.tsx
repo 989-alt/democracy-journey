@@ -21,7 +21,8 @@ const EMPTY: Board = { ok: {}, first: {}, feed: [], n: 0 };
 
 // ⑤ 기관 카드 — 하는 일 8장을 3 기관 칸에, 이어서 견제 3장을 받는 기관 칸에. 끌어 놓기(Pointer Events) 또는 카드 탭 → 칸 탭.
 // 리듀서는 최종 답 하나만 받으므로 화면이 먼저 오답을 되돌려 보낸다. 기록에는 카드마다 '처음 놓은 칸'을 넣는다(되돌려진 시도가 오개념 기록이 된다).
-export function Organ({ scene, onJudge }: JudgeProps) {
+// R30: 마지막 카드를 놓는 순간 채점 확정(onJudge, 처음 놓은 칸 기준). 피드백은 저장된 결과(result)로만 그린다.
+export function Organ({ scene, result, onJudge, onNext }: JudgeProps) {
   const { cards, checks } = CONTENT.judges.organ;
   const [board, setBoard] = useState<Board>(EMPTY);
   const boardRef = useRef(board);
@@ -81,15 +82,19 @@ export function Organ({ scene, onJudge }: JudgeProps) {
     return () => clearTimeout(t);
   }, [bounce]);
 
-  const phase2 = cards.every((c) => board.ok[`c:${c.id}`]);
-  const done = phase2 && checks.every((c) => board.ok[`k:${c.id}`]);
-  const placedN = Object.keys(board.ok).length;
+  // 복원(새로고침)으로 결과만 있으면 모든 카드를 제 칸에 놓인 채로 보여 준다.
+  const placed: Record<string, string> = result
+    ? Object.fromEntries([...cards.map((c) => [`c:${c.id}`, c.organ]), ...checks.map((c) => [`k:${c.id}`, c.to])])
+    : board.ok;
+  const phase2 = cards.every((c) => placed[`c:${c.id}`]);
+  const done = !!result || (phase2 && checks.every((c) => placed[`k:${c.id}`]));
+  const placedN = Object.keys(placed).length;
   const total = cards.length + checks.length;
   const tray = phase2 ? checks.map((c) => ({ key: `k:${c.id}`, label: `${COPY.ui.organs[c.from]} → ${c.label}`, icon: c.icon })) : cards.map((c) => ({ key: `c:${c.id}`, label: c.label, icon: c.icon }));
-  const answer: JudgeAnswer | null = done
-    ? { kind: 'organ', placed: Object.fromEntries(cards.map((c) => [c.id, board.first[`c:${c.id}`]])), checks: Object.fromEntries(checks.map((c) => [c.id, board.first[`k:${c.id}`]])) }
-    : null;
-  const result = answer ? scoreJudge('organ', answer, CONTENT.judges) : null;
+  useEffect(() => {
+    if (!done || result) return;
+    onJudge({ kind: 'organ', placed: Object.fromEntries(cards.map((c) => [c.id, board.first[`c:${c.id}`]])), checks: Object.fromEntries(checks.map((c) => [c.id, board.first[`k:${c.id}`]])) });
+  }, [done]);
   const wrong = result ? result.items.filter((i) => !i.correct) : [];
   const itemKey = (item: string) => (item.startsWith('card:') ? `c:${item.slice(5)}` : `k:${item.slice(6)}`);
 
@@ -136,10 +141,10 @@ export function Organ({ scene, onJudge }: JudgeProps) {
               >
                 <span class="zh"><img class="ic big" src={ICON[z.icon]} alt="" />{COPY.ui.organs[z.id]}</span>
                 <span class="pl">
-                  {cards.filter((c) => board.ok[`c:${c.id}`] === z.id).map((c) => (
+                  {cards.filter((c) => placed[`c:${c.id}`] === z.id).map((c) => (
                     <span key={c.id} class="chip ph"><span class="cl"><img class="oi" src={ORGAN[c.icon]} alt="" />{c.label}</span></span>
                   ))}
-                  {checks.filter((c) => board.ok[`k:${c.id}`] === z.id).map((c) => (
+                  {checks.filter((c) => placed[`k:${c.id}`] === z.id).map((c) => (
                     <span key={c.id} class="chip ph chk"><span class="cl"><img class="oi" src={ORGAN[c.icon]} alt="" /><span class="tx">{COPY.ui.organs[c.from]} →<br />{c.label}</span></span></span>
                   ))}
                 </span>
@@ -147,15 +152,15 @@ export function Organ({ scene, onJudge }: JudgeProps) {
             ))}
           </div>
           <div class="card jcard tray" role="group" aria-label={phase2 ? COPY.ui.checkCards : COPY.ui.workCards}>
-            {tray.filter((t) => !board.ok[t.key]).map((t) => chipFor(t.key, t.label, t.icon))}
+            {tray.filter((t) => !placed[t.key]).map((t) => chipFor(t.key, t.label, t.icon))}
           </div>
         </div>
-        {done && result ? (
+        {result ? (
           <Feedback
             placement="side"
             className="ofeed"
             items={wrong.length === 0 ? [{ ok: true, text: COPY.feedback.organAllRight }] : wrong.map((w) => ({ ok: false, label: label(itemKey(w.item)), text: (w.misconception && COPY.feedback[w.misconception]) || COPY.feedback['organ.wrong'] }))}
-            onNext={() => onJudge(answer!)}
+            onNext={onNext}
           />
         ) : (
           <aside class="card jcard ofeed">

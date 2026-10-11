@@ -3,28 +3,29 @@ import { ICON } from '../../assets';
 import { sfx } from '../../audio/audio';
 import { CONTENT } from '../../content';
 import { COPY } from '../../content/copy';
-import { scoreJudge } from '../../engine/judge';
 import type { JudgeProps } from './drag';
-import { Feedback, JudgeFrame, verdictSfx } from './shared';
+import { Feedback, JudgeFrame, useVerdictSfx } from './shared';
 import './judge.css';
 
 const CARD_ICON: Record<string, string> = { assembly: 'assembly', court: 'gavel', press: 'newspaper', neighbor: 'house' };
 
 // ② 호소처 — 카드 4장을 모두 뒤집어야 이유 3지가 열린다.
-export function Appeal({ scene, onJudge }: JudgeProps) {
+// R30: 까닭을 고르면 곧바로 채점 확정(onJudge). 피드백·고른 카드 표시는 저장된 결과(result)에서.
+export function Appeal({ scene, result, onJudge, onNext }: JudgeProps) {
   const A = CONTENT.judges.appeal;
   const [flipped, setFlipped] = useState<string[]>([]);
-  const [why, setWhy] = useState<string | null>(null);
-  const all = flipped.length === A.cards.length;
-  const item = why ? scoreJudge('appeal', { kind: 'appeal', why }, CONTENT.judges).items[0] : null;
+  useVerdictSfx(result);
+  const item = result?.items[0];
+  // 결과에서 고른 까닭을 되살린다: 정답 여부와 오개념이 같은 선택지.
+  const why = item ? A.why.find((w) => w.correct === item.correct && w.misconception === item.misconception)?.id ?? null : null;
+  const all = !!result || flipped.length === A.cards.length;
   const text = !item ? '' : item.correct ? COPY.feedback.appealRight : COPY.feedback[item.misconception ?? 'appeal.wrong'] ?? COPY.feedback['appeal.wrong'];
   const task = all ? COPY.ui.why : scene.text[scene.text.length - 1];
 
   const pick = (id: string) => {
-    if (why) return;
+    if (result) return;
     sfx('tap');
-    setWhy(id);
-    verdictSfx(!!A.why.find((w) => w.id === id)?.correct);
+    onJudge({ kind: 'appeal', why: id });
   };
 
   return (
@@ -36,7 +37,7 @@ export function Appeal({ scene, onJudge }: JudgeProps) {
         </div>
         <div class="grid4" role="group" aria-label={COPY.ui.appealCards}>
           {A.cards.map((c) => {
-            const on = flipped.includes(c.id);
+            const on = all || flipped.includes(c.id);
             return (
               <button
                 key={c.id}
@@ -76,7 +77,7 @@ export function Appeal({ scene, onJudge }: JudgeProps) {
           </div>
         ) : null}
       </div>
-      {item ? <Feedback placement="bottom" items={[{ ok: item.correct, text }]} onNext={() => onJudge({ kind: 'appeal', why: why! })} /> : null}
+      {item ? <Feedback placement="bottom" items={[{ ok: item.correct, text }]} onNext={onNext} /> : null}
     </JudgeFrame>
   );
 }

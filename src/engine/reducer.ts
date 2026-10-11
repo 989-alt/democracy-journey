@@ -1,7 +1,7 @@
 import { CONTENT, sceneOrder } from '../content';
 import type { Option, StatKey, Stats } from '../content/types';
 import { judgePassed, pledgeComplete, scoreJudge } from './judge';
-import { SCENE_BY_ID, currentScene, initialState, isLocked } from './state';
+import { SCENE_BY_ID, currentScene, initialState, isLocked, retryTargets } from './state';
 import type { Action, LogEvent, State } from './state';
 
 const clamp = (n: number) => Math.max(0, Math.min(3, n));
@@ -67,7 +67,7 @@ export function reduce(state: State, action: Action): State {
     case 'next': {
       if (state.stage !== 'play') return state;
       const sc = currentScene(state);
-      if (sc.kind === 'judge') return state; // 판별은 judge 액션으로만 넘어간다
+      if (sc.kind === 'judge' && !(sc.judge && state.judges[sc.judge])) return state; // R30: 채점(judge 액션) 뒤에만 넘어간다
       if ((sc.kind === 'story' || sc.kind === 'culture') && sc.options.length > 0) return state;
       let log = state.log;
       if (sc.kind === 'compare') {
@@ -101,15 +101,18 @@ export function reduce(state: State, action: Action): State {
         retryQueue: [...state.retryQueue, ...add],
         flags: judgePassed(result) && !state.flags.includes(flag) ? [...state.flags, flag] : state.flags,
       };
-      return advance(next, action.t, undefined, [...state.log, ...events]);
+      // R30: 채점·기록만 하고 전진하지 않는다(피드백을 본 뒤 'next'). 새로고침해도 같은 판별을 다시 풀 수 없다.
+      return { ...next, log: [...state.log, ...events] };
     }
 
     case 'retry': {
-      if (state.stage === 'title') return state;
-      const q = state.retryQueue.find((x) => x.kind === action.kind && x.item === action.item);
+      if (state.stage !== 'play') return state;
+      const sc = currentScene(state);
+      if (sc.kind !== 'retry') return state; // R29: 다시 보기 장면에서만
+      // 화면과 같은 목록(①~③, 지난 장 판별, 이 장에서 아직 안 답한 문항)에 있을 때만 받는다
+      const q = retryTargets(state.retryQueue, state.log, sc.chapter).find((x) => x.kind === action.kind && x.item === action.item);
       if (!q) return state;
       const attempt = q.attempts + 2; // 원래 판별 = 1회차
-      const sc = currentScene(state);
       // 다시 틀리면 직전 판단의 오개념을 이어받는다(최종 attempt 에서 S10 이 읽는다).
       const prev = [...state.log].reverse().find((e) => e.type === 'judge' && e.kind === q.kind && e.item === q.item);
       const mis = !action.correct && prev?.misconception ? { misconception: prev.misconception } : {};

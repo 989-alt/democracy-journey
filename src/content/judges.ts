@@ -28,8 +28,8 @@ export const judges: Judges = {
     ],
     why: [
       { id: 'strong', label: '대통령 권력이 세면 국민이 더 안전해지기 때문에', correct: false, misconception: 'M11' },
-      { id: 'concentrated', label: '권력이 한곳에 모여 서로 견제하지 못해서', correct: true },
       { id: 'lazy', label: '국회·법원·신문이 모두 일을 게을리해서', correct: false },
+      { id: 'concentrated', label: '권력이 한곳에 모여 서로 견제하지 못해서', correct: true },
     ],
   },
   // ③ 정보 카드 — 기준 4개는 교과분석 44(교과서 p.106). 체크 true = 그렇다.

@@ -4,10 +4,8 @@ import { sfx } from '../../audio/audio';
 import { CONTENT } from '../../content';
 import { COPY } from '../../content/copy';
 import type { SourceCard as SourceCardT } from '../../content/types';
-import { scoreJudge } from '../../engine/judge';
-import type { JudgeAnswer } from '../../engine/state';
 import type { JudgeProps } from './drag';
-import { Feedback, JudgeFrame, verdictSfx } from './shared';
+import { Feedback, JudgeFrame, useVerdictSfx } from './shared';
 import './judge.css';
 
 export type Trust = 'low' | 'mid' | 'high';
@@ -49,19 +47,17 @@ export function SourceCard({ card: c, checks, trust, locked, onCheck, onTrust }:
 }
 
 // ③ 정보 카드 — 카드 2×2 + 오른쪽 기준 패널(시안 2-수채-B 판별③). 판단 뒤 기준 패널 자리가 피드백 패널로 바뀐다.
-export function Source({ scene, onJudge }: JudgeProps) {
+// R30: '판단 끝내기' = 채점 확정(onJudge). 피드백은 저장된 결과(result)로만 그린다.
+export function Source({ scene, result, onJudge, onNext }: JudgeProps) {
   const { cards, criteria } = CONTENT.judges.source;
   const [checks, setChecks] = useState<Record<string, boolean[]>>(() => Object.fromEntries(cards.map((c) => [c.id, [false, false, false, false]])));
   const [trust, setTrust] = useState<Record<string, Trust | undefined>>({});
-  const [answer, setAnswer] = useState<JudgeAnswer | null>(null);
+  useVerdictSfx(result);
   const done = cards.filter((c) => trust[c.id]).length;
-  const result = answer ? scoreJudge('source', answer, CONTENT.judges) : null;
 
   const finish = () => {
-    if (answer || done < cards.length) return;
-    const a: JudgeAnswer = { kind: 'source', cards: Object.fromEntries(cards.map((c) => [c.id, { checks: checks[c.id], trust: trust[c.id]! }])) };
-    setAnswer(a);
-    verdictSfx(scoreJudge('source', a, CONTENT.judges).items.every((i) => i.correct));
+    if (result || done < cards.length) return;
+    onJudge({ kind: 'source', cards: Object.fromEntries(cards.map((c) => [c.id, { checks: checks[c.id], trust: trust[c.id]! }])) });
   };
 
   return (
@@ -73,12 +69,12 @@ export function Source({ scene, onJudge }: JudgeProps) {
             card={c}
             checks={checks[c.id]}
             trust={trust[c.id]}
-            locked={!!answer}
+            locked={!!result}
             onCheck={(i, v) => setChecks((m) => ({ ...m, [c.id]: m[c.id].map((x, j) => (j === i ? v : x)) }))}
             onTrust={(v) => setTrust((t) => ({ ...t, [c.id]: v }))}
           />
         ))}
-        {answer && result ? (
+        {result ? (
           <Feedback
             placement="side"
             className="rule"
@@ -86,7 +82,7 @@ export function Source({ scene, onJudge }: JudgeProps) {
               const it = result.items.find((i) => i.item === c.id);
               return { ok: it?.correct === true, label: c.source, text: (it?.misconception && COPY.feedback[it.misconception]) || c.feedback };
             })}
-            onNext={() => onJudge(answer)}
+            onNext={onNext}
           />
         ) : (
           <aside class="card jcard rule" aria-label={COPY.ui.criteriaLabel}>

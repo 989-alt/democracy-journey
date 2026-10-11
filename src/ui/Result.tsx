@@ -9,8 +9,6 @@ import { Timeline } from './Timeline';
 import './result.css';
 
 const AGES: PortraitAge[] = ['y10', 'y20', 'y30', 'y37', 'old'];
-const AGE_LABEL: Record<PortraitAge, string> = { y10: '10살', y20: '20살', y30: '30살', y37: '37살', old: '어르신' };
-const KIND_LABEL = { poll: '투표소 그림', appeal: '호소처', source: '정보 카드', pledge: '공약 채점', organ: '기관 카드' } as const;
 
 export function Result({ state, dispatch }: { state: State; dispatch: (a: Action) => void }) {
   const s = summarize(state);
@@ -23,21 +21,21 @@ export function Result({ state, dispatch }: { state: State; dispatch: (a: Action
   return (
     <>
       <img class="art" src={BG['today-street']} alt="" style={{ filter: 'none' }} />
-      <ol class="life" aria-label="나의 인생 사진첩">
+      <ol class="life" aria-label={COPY.ui.lifeAlbum}>
         {AGES.map((a) => (
-          <li key={a} class="portrait-s"><img src={PORTRAIT[a].calm} alt={`${AGE_LABEL[a]}의 나`} /></li>
+          <li key={a} class="portrait-s"><img src={PORTRAIT[a].calm} alt={COPY.ui.ageAlt(COPY.ui.ages[a])} /></li>
         ))}
       </ol>
-      
+
       <p class="pin" role="status">
-          <span>{habit === null ? '습관 다짐을 하나 골라 보세요' : COPY.habits[habit]}</span>
-        </p>
+        <span>{habit === null ? COPY.ui.habitPrompt : COPY.habits[habit]}</span>
+      </p>
 
       <div class="card box sum">
-        <h1 class="sr">나의 이야기</h1>
+        <h1 class="sr">{COPY.ui.myStory}</h1>
         <ul class="stats">
-          <li><img class="ic" src={ICON.pen} alt="" /><span>플레이 시간</span><b>{minutes}분</b></li>
-          <li><img class="ic" src={ICON.house} alt="" /><span>도달 지점</span><b>{s.reachedChapter === '완주' ? '완주' : COPY.ui.chapterTitles[s.reachedChapter - 1].split(' · ')[0]}</b></li>
+          <li><img class="ic" src={ICON.pen} alt="" /><span>{COPY.ui.playTime}</span><b>{COPY.ui.minutes(minutes)}</b></li>
+          <li><img class="ic" src={ICON.house} alt="" /><span>{COPY.ui.reached}</span><b>{s.reachedChapter === '완주' ? COPY.ui.finished : COPY.ui.chapterTitles[s.reachedChapter - 1].split(' · ')[0]}</b></li>
           <li><img class="ic" src={ICON.ballot} alt="" /><span>{COPY.ui.judgeScore}</span><b>{s.judged.correct} / {s.judged.total}</b></li>
         </ul>
         <div class="acts">
@@ -51,12 +49,12 @@ export function Result({ state, dispatch }: { state: State; dispatch: (a: Action
       </div>
 
       <div class="card box habits">
-        <h2><img class="ic" src={ICON.hand} alt="" />습관 다짐</h2>
+        <h2><img class="ic" src={ICON.hand} alt="" />{COPY.ui.habitTitle}</h2>
         <ul>
           {COPY.habits.map((h, i) => (
             <li key={h}>
               <button type="button" class="btn paper" aria-pressed={habit === i} onClick={() => { sfx('tap'); setHabit(habit === i ? null : i); }}>
-                <span>{habit === i ? '✓ ' : ''}{h}</span>
+                <span>{habit === i ? COPY.ui.checked : ''}{h}</span>
               </button>
             </li>
           ))}
@@ -74,7 +72,7 @@ export function Result({ state, dispatch }: { state: State; dispatch: (a: Action
               {s.wrongItems.map((w) => (
                 <li key={`${w.kind}|${w.item}`}>
                   <img class="ic" src={ICON['stamp-cross']} alt={COPY.ui.wrong} />
-                  <span><b>{KIND_LABEL[w.kind]}</b> {w.question}</span>
+                  <span><b>{COPY.ui.kinds[w.kind]}</b> {w.question}</span>
                   <span class="ans"><img class="ic" src={ICON['stamp-ring']} alt="" /><b>{COPY.ui.answerLabel}</b> {w.answer}</span>
                 </li>
               ))}

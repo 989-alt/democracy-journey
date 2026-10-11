@@ -128,7 +128,18 @@ describe('판별 액션', () => {
     expect(bad.stats).toEqual(stats);
     expect(bad.flags).not.toContain('knows_poll');
     expect(bad.judges.poll?.items).toHaveLength(6);
-    expect(bad.sceneIndex).toBe(sceneOrder.indexOf('c1-s09'));
+  });
+  it('R30: judge 는 채점·기록만 하고 전진하지 않는다, 그 뒤 next 로 넘어간다', () => {
+    const j = at('c1-s08');
+    expect(reduce(j, { type: 'next', t: 1 })).toBe(j); // 채점 전 next 무시
+    const s = reduce(j, polls(wrong));
+    expect(s.sceneIndex).toBe(sceneOrder.indexOf('c1-s08'));
+    expect(s.judges.poll).toBeDefined();
+    // 같은 판별을 다시 보내도(새로고침 뒤 재풀이 시도) 무시
+    expect(reduce(s, polls(['bribe', 'group', 'stack', 'proxy']))).toBe(s);
+    const n = reduce(s, { type: 'next', t: 6 });
+    expect(n.sceneIndex).toBe(sceneOrder.indexOf('c1-s09'));
+    expect(n.judges).toBe(s.judges);
   });
   it('오답 항목만 retryQueue 에 attempts 0 으로 들어간다', () => {
     const s = reduce(at('c1-s08'), polls(wrong));
@@ -157,14 +168,18 @@ describe('판별 액션', () => {
 });
 
 describe('retry', () => {
-  const failed = () => reduce(at('c1-s08'), polls(wrong2()));
+  // 1장에서 판별을 틀린 뒤 2장 다시 보기 장면(c2-s10)으로 옮긴 상태
+  const R2 = sceneOrder.indexOf('c2-s10');
+  const R3 = sceneOrder.indexOf('c3-s09');
+  const failed = () => ({ ...reduce(at('c1-s08'), polls(wrong2())), sceneIndex: R2 });
   function wrong2() { return ['bribe', 'trap_home']; }
   const retry = (s: State, correct: boolean, item = 'group', t = 9): State =>
     reduce(s, { type: 'retry', kind: 'poll', item, correct, t });
+  const toCh3 = (s: State): State => ({ ...s, sceneIndex: R3 });
 
   it('retry 는 stats·flags 불변', () => {
-    const f = reduce(at('c1-s08', { stats: { join: 2, info: 1, home: 3 } }), polls(wrong2()));
-    const r = retry(retry(f, false), true);
+    const f = { ...reduce(at('c1-s08', { stats: { join: 2, info: 1, home: 3 } }), polls(wrong2())), sceneIndex: R2 };
+    const r = retry(toCh3(retry(f, false)), true);
     expect(r.stats).toEqual(f.stats);
     expect(r.flags).toEqual(f.flags);
   });
@@ -176,7 +191,7 @@ describe('retry', () => {
     expect(r.judges.poll?.items.find((i) => i.item === 'stack')).toMatchObject({ correct: false, attempt: 1 });
     const w = retry(f, false, 'trap_home');
     expect(w.judges.poll?.items.find((i) => i.item === 'trap_home')).toMatchObject({ correct: false, attempt: 2, misconception: 'M6' });
-    expect(retry(w, true, 'trap_home').judges.poll?.items.find((i) => i.item === 'trap_home')).toEqual({ item: 'trap_home', correct: true, attempt: 3 });
+    expect(retry(toCh3(w), true, 'trap_home').judges.poll?.items.find((i) => i.item === 'trap_home')).toEqual({ item: 'trap_home', correct: true, attempt: 3 });
   });
   it('정답이면 큐에서 제거, 로그에 retry+judge(attempt 2)', () => {
     const s = retry(failed(), true);
@@ -188,7 +203,7 @@ describe('retry', () => {
   it('계속 틀리면 attempt 3 에서 큐 제거 — 최대 3', () => {
     let s = retry(failed(), false);
     expect(s.retryQueue.find((q) => q.item === 'group')?.attempts).toBe(1);
-    s = retry(s, false);
+    s = retry(toCh3(s), false);
     expect(s.retryQueue.find((q) => q.item === 'group')).toBeUndefined();
     const attempts = s.log.filter((e) => e.type === 'judge' && e.item === 'group').map((e) => e.attempt);
     expect(attempts).toEqual([1, 2, 3]);
@@ -203,6 +218,23 @@ describe('retry', () => {
     const s = failed();
     expect(retry(s, true, 'bribe')).toBe(s);
     expect(reduce(initialState(1), { type: 'retry', kind: 'poll', item: 'x', correct: true, t: 1 }).log).toEqual([]);
+  });
+  it('R29: retry 는 다시 보기 장면에서만, 한 장에서 문항마다 한 번만, pledge·organ 은 받지 않는다', () => {
+    const onJudge = reduce(at('c1-s08'), polls(wrong2())); // 판별 장면 그대로
+    expect(retry(onJudge, true)).toBe(onJudge);
+    const once = retry(failed(), false);
+    expect(retry(once, true)).toBe(once); // 같은 장 같은 문항 두 번째는 무시(새로고침 재답 방지)
+    expect(retry(once, true, 'stack').retryQueue.find((q) => q.item === 'stack')).toBeUndefined(); // 다른 문항은 받는다
+    const pledgeQ = { ...failed(), retryQueue: [{ kind: 'pledge' as const, item: 'vote', attempts: 0 }] };
+    expect(reduce(pledgeQ, { type: 'retry', kind: 'pledge', item: 'vote', correct: true, t: 1 })).toBe(pledgeQ);
+  });
+  it('R29: 2장 다시 보기에서 큐의 poll 문항 전부를 차례로 답할 수 있다', () => {
+    let s = failed();
+    const items = s.retryQueue.map((q) => q.item);
+    expect(items.sort()).toEqual(['group', 'proxy', 'stack', 'trap_home']);
+    for (const it of items) s = retry(s, true, it);
+    expect(s.retryQueue).toEqual([]);
+    expect(s.log.filter((e) => e.type === 'retry')).toHaveLength(4);
   });
 });
 

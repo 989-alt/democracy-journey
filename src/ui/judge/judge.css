@@ -17,12 +17,12 @@
 img.ic.s{width:18px;height:18px;margin-right:4px}
 img.ic.big{width:40px;height:40px}
 
-/* 종이 태그(kit tag-apricot 376×175) — 글자 86px 폭, 15px, 2줄 */
+/* 종이 태그(kit tag-apricot 376×175) — 글자 80px 폭, 16px, 2줄 */
 .tag{position:relative;display:inline-block;width:134px;height:62px;background:var(--img-tag) left center/contain no-repeat;flex:none}
-.tag>span{position:absolute;left:8px;width:80px;top:50%;transform:translateY(-50%);text-align:center;font:400 15px/1.15 var(--font-body);word-break:keep-all}
+.tag>span{position:absolute;left:8px;width:80px;top:50%;transform:translateY(-50%);text-align:center;font:400 var(--text-sm)/1.15 var(--font-body);word-break:keep-all}
 
 /* 피드백(R24) — 내용을 덮지 않고 제 자리에 붙는다 ───────────── */
-.fl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3);font-size:var(--text-sm);line-height:1.4;word-break:keep-all;min-height:0}
+.fl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3);font-size:18px;line-height:1.4;word-break:keep-all;min-height:0}
 .fl li{display:flex;gap:8px;align-items:flex-start}
 .fl li .ic{margin-top:2px}
 .fl b{font-family:var(--font-display);font-weight:400}
@@ -33,14 +33,14 @@ img.ic.big{width:40px;height:40px}
 .fside .btn{flex:none;width:100%}
 /* 아래 패널: 아래 띠가 위로 자란 종이 */
 .fb.bottom{position:absolute;left:12px;right:12px;bottom:4px;z-index:4;max-height:40%;border:20px solid transparent;border-image:var(--img-topbar) 40 fill / 20px stretch;display:grid;grid-template-columns:1fr auto;gap:var(--space-3);align-items:center;padding:6px 8px}
-.fb.bottom .fl{overflow-y:auto;font-size:var(--text-base);max-height:240px}
+.fb.bottom .fl{overflow-y:auto;font-size:18px;line-height:1.4;max-height:240px}
 .fb.bottom .btn{flex:none}
-.fb.bottom.poll .fl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2) var(--space-5);font-size:var(--text-sm);line-height:1.35;max-height:210px}
+.fb.bottom.poll .fl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2) var(--space-5);font-size:18px;line-height:1.4;max-height:300px}
 .fb.bottom.poll .ft{display:flex;align-items:center;gap:6px;font:400 var(--text-sm)/1.3 var(--font-display);padding-right:240px}
 .fb.bottom.poll .btn{width:160px}
 /* 표 카드 맨 아래 한 줄 */
 .fb.row{grid-column:1/-1;display:flex;align-items:center;gap:var(--space-4);min-height:56px}
-.fb.row .fl{flex:1;font-size:var(--text-sm)}
+.fb.row .fl{flex:1;font-size:18px}
 .ptab .fb.row .btn{flex:none;width:auto;min-width:160px}
 
 /* ① 투표소 ─────────────────────────────────────────── */
@@ -128,7 +128,7 @@ img.ic.big{width:40px;height:40px}
 .chip .oi{width:30px;height:26px;object-fit:contain;flex:none}
 .chip.chk .cl{white-space:normal;line-height:1.15;gap:4px}
 .chip.chk .oi{width:24px}
-.chip.chk .tx{text-align:left;font-size:15px}
+.chip.chk .tx{text-align:left;font-size:var(--text-sm)}
 .chip.sel{outline:3px solid var(--ring);outline-offset:2px}
 .chip.drag{z-index:30;cursor:grabbing;filter:drop-shadow(0 6px 8px var(--muted-foreground))}
 .chip.bounce{animation:bounce .4s}
@@ -140,7 +140,7 @@ img.ic.big{width:40px;height:40px}
 .ofeed li{display:flex;gap:6px;align-items:flex-start}
 .ofeed li .ic{margin-top:2px}
 .ofeed li b{font-family:var(--font-display);font-weight:400}
-.ofeed.fside .fl{font-size:var(--text-sm)}
+.ofeed.fside .fl{font-size:18px}
 
 /* 비교 카드 ─────────────────────────────────────────── */
 .cmp{top:92px;bottom:92px;display:grid;grid-template-columns:380px 3px 1fr;column-gap:var(--space-4)}

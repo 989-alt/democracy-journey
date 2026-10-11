@@ -52,6 +52,16 @@ describe('audio', () => {
     expect(made.sources.length).toBe(1);
     expect(made.sources[0].loop).toBe(true);
   });
+  it('디코드 실패 시 cur 를 되돌려 다음 호출에서 다시 시도한다(R32)', async () => {
+    A.unlock();
+    const c = A.init() as any;
+    c.decodeAudioData.mockRejectedValueOnce(new Error('bad'));
+    await expect(A.playBgm(1)).rejects.toThrow('bad');
+    expect(made.sources.length).toBe(0);
+    await A.playBgm(1);
+    expect(c.decodeAudioData).toHaveBeenCalledTimes(2);
+    expect(made.sources.length).toBe(1);
+  });
   it('다른 트랙은 1초 크로스페이드로 이전 소스를 멈춘다', async () => {
     A.unlock();
     await A.playBgm(1);
@@ -70,7 +80,7 @@ describe('audio', () => {
     expect(A.isMuted()).toBe(false);
   });
   it('localStorage 에 접근하지 않는다', async () => {
-    A.unlock(); A.setMuted(true); await A.playBgm(3); A.sfx('save');
+    A.unlock(); A.setMuted(true); await A.playBgm(3); A.sfx('tap');
     expect(lsSpy).not.toHaveBeenCalled();
   });
 });

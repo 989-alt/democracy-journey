@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { isMuted, setMuted } from '../audio/audio';
+import { COPY } from '../content/copy';
 
 export function Mute() {
   const [m, setM] = useState(isMuted());
@@ -10,7 +11,7 @@ export function Mute() {
       aria-pressed={m}
       onClick={() => { setMuted(!m); setM(!m); }}
     >
-      {m ? '소리 켜기' : '소리 끄기'}
+      {m ? COPY.ui.muteOn : COPY.ui.muteOff}
     </button>
   );
 }

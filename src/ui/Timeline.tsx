@@ -7,7 +7,7 @@ import { chapterTitle, CHAPTERS } from '../engine/summary';
 // 같은 해가 이어지면 연도 태그는 한 번만 붙인다.
 export function Timeline({ events, memos }: { events: TimelineEvent[]; memos: Record<Chapter, string[]> }) {
   return (
-    <section class="tl" aria-label="인생 연표" tabIndex={0}>
+    <section class="tl" aria-label={COPY.ui.timeline} tabIndex={0}>
       <ol class="tl-row">
         {CHAPTERS.map((c) => {
           const evs = events.filter((e) => e.chapter === c);
@@ -17,8 +17,8 @@ export function Timeline({ events, memos }: { events: TimelineEvent[]; memos: Re
               <ul class="tl-ev">
                 {evs.map((e, i) => (
                   <li key={e.label}>
-                    {i === 0 || evs[i - 1].year !== e.year ? <span class="yr"><span>{e.year ?? '오늘'}</span></span> : null}
-                    <span class="lb">{e.year === undefined ? '지금, 내 삶' : e.label}</span>
+                    {i === 0 || evs[i - 1].year !== e.year ? <span class="yr"><span>{e.year ?? COPY.ui.timelineToday}</span></span> : null}
+                    <span class="lb">{e.year === undefined ? COPY.ui.timelineNow : e.label}</span>
                   </li>
                 ))}
               </ul>
