@@ -116,7 +116,7 @@ export function App() {
       if (e.key >= '1' && e.key <= '3') {
         const o = sc.options[Number(e.key) - 1];
         if (o) choose(o.id);
-      } else if (e.key === 'Enter' && picked && (sc.kind === 'culture' || sc.kind === 'story')) {
+      } else if (e.key === 'Enter' && picked && (sc.kind === 'culture' || sc.kind === 'story') && !(e.target instanceof HTMLButtonElement)) { // 포커스된 버튼(소리 끄기 등)의 Enter 는 그 버튼이 처리 — QA r4 minor
         e.preventDefault();
         confirm();
       } else if (e.key === 'Enter' && (sc.kind === 'judge' || sc.kind === 'compare' || sc.kind === 'retry')) {
