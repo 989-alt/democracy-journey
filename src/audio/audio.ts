@@ -1,4 +1,4 @@
-import { BGM } from '../assets';
+import { BGM, SFX } from '../assets';
 
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;
@@ -17,12 +17,6 @@ export function init(): Ctx {
     master.connect(ctx.destination);
   }
   return ctx;
-}
-
-/** 첫 pointerdown 에서 호출. 그 전에는 context 만 만들고 resume 하지 않는다. */
-export function unlock(): void {
-  const c = init();
-  if (c.state === 'suspended') void c.resume();
 }
 
 export function setMuted(m: boolean): void {
@@ -82,31 +76,44 @@ export async function playBgm(n: Track): Promise<void> {
   curGain = g;
 }
 
-export type SfxName = 'tap' | 'correct' | 'wrong';
-const NOTES: Record<SfxName, [number, number, OscillatorType][]> = {
-  tap: [[660, 0.06, 'triangle']],
-  correct: [[523, 0.12, 'sine'], [784, 0.2, 'sine']],
-  wrong: [[220, 0.18, 'sawtooth'], [165, 0.25, 'sawtooth']],
-};
+export type SfxName = 'tap' | 'correct' | 'wrong' | 'save' | 'bleed';
+const SFX_NAMES: SfxName[] = ['tap', 'correct', 'wrong', 'save', 'bleed'];
+const MAX_VOICES = 4;
+const sfxBufs = new Map<SfxName, AudioBuffer>();
+let sfxLoading = false;
+let voices: AudioBufferSourceNode[] = [];
+
+async function loadSfx(): Promise<void> {
+  if (sfxLoading) return;
+  sfxLoading = true;
+  const c = init();
+  await Promise.all(SFX_NAMES.map(async (n) => {
+    try {
+      sfxBufs.set(n, await c.decodeAudioData(await bytes(SFX[n])));
+    } catch { /* 한 개 실패해도 나머지는 쓴다 */ }
+  }));
+}
+
+/** unlock 이후에만 디코드를 시작한다. 디코드 전 sfx() 는 조용히 무시. */
+export function unlock(): void {
+  const c = init();
+  if (c.state === 'suspended') void c.resume();
+  void loadSfx();
+}
+
 export function sfx(name: SfxName): void {
-  if (!ctx || ctx.state !== 'running' || muted || !master) return;
-  let t = ctx.currentTime;
-  for (const [f, d, type] of NOTES[name]) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(f, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    o.connect(g).connect(master);
-    o.start(t);
-    o.stop(t + d + 0.02);
-    t += d * 0.8;
-  }
+  const buf = sfxBufs.get(name);
+  if (!ctx || ctx.state !== 'running' || !master || !buf) return;
+  while (voices.length >= MAX_VOICES) voices.shift()!.stop();
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(master);
+  src.onended = () => { voices = voices.filter((v) => v !== src); };
+  src.start();
+  voices.push(src);
 }
 
 /** 테스트용 초기화 */
 export function _reset(): void {
-  ctx = master = curGain = null; curSrc = null; cur = 0; muted = false; cache.clear();
+  ctx = master = curGain = null; curSrc = null; cur = 0; muted = false; cache.clear(); sfxBufs.clear(); sfxLoading = false; voices = [];
 }

@@ -30,4 +30,4 @@ npm run e2e        # 시드 완주 e2e (playwright)
 
 ## 출처
 
-교과 내용은 사회 6-1 교과서·지도서를 바탕으로 했다. 그림은 GPT-image(Sol), 배경음악은 Suno(kie.ai, V6, 연주곡)로 생성했다. 효과음은 Web Audio 로 합성한다. 서체는 Gowun Batang·Gowun Dodum·Nanum Pen Script(SIL OFL).
+교과 내용은 사회 6-1 교과서·지도서를 바탕으로 했다. 그림은 GPT-image(Sol), 배경음악은 Suno(kie.ai, V6, 연주곡)로 생성했다. 효과음은 Suno(kie.ai, Generate sounds)로 생성했다. 서체는 Gowun Batang·Gowun Dodum·Nanum Pen Script(SIL OFL).

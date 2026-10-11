@@ -1,9 +1,11 @@
 import { useEffect } from 'preact/hooks';
+import { sfx } from '../audio/audio';
 import { BG } from '../assets';
 import type { Scene } from '../content/types';
 
 export function ChapterTitle({ scene, onDone }: { scene: Scene; onDone: () => void }) {
   useEffect(() => {
+    if (scene.chapter >= 2 && scene.chapter <= 5) sfx('bleed');
     const t = setTimeout(onDone, 1500);
     return () => clearTimeout(t);
   }, [scene.id]);

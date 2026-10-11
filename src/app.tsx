@@ -75,7 +75,7 @@ export function App() {
   useEffect(() => {
     if (state.stage === 'title' || state.log.length === 0) return;
     save(state);
-    if (state.stage === 'done' || lastEvt?.type === 'chapter_end' || lastEvt?.type === 'judge') setToast((n) => n + 1);
+    if (state.stage === 'done' || lastEvt?.type === 'chapter_end' || lastEvt?.type === 'judge') { setToast((n) => n + 1); sfx('save'); }
   }, [state.log.length, state.stage]);
 
   useEffect(() => () => clearTimeout(faceTimer.current), []);

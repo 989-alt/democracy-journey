@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../assets', () => ({ BGM: { 1: 'data:audio/ogg;base64,AQIDBAU=', 2: 'b', 3: 'c', 4: 'd', 5: 'e' } }));
+const D = 'data:audio/ogg;base64,AQIDBAU=';
+vi.mock('../assets', () => ({ BGM: { 1: D, 2: 'b', 3: 'c', 4: 'd', 5: 'e' }, SFX: { tap: D, correct: D, wrong: D, save: D, bleed: D } }));
 
 const made = { sources: [] as any[], resume: vi.fn() };
 class FakeParam { value = 1; setValueAtTime = vi.fn(); linearRampToValueAtTime = vi.fn(); exponentialRampToValueAtTime = vi.fn(); setTargetAtTime = vi.fn((v: number) => { this.value = v; }); }
-class FakeNode { gain = new FakeParam(); frequency = new FakeParam(); connect(n: any) { return n; } start = vi.fn(); stop = vi.fn(); loop = false; buffer: any; type = ''; }
+class FakeNode { gain = new FakeParam(); frequency = new FakeParam(); connect(n: any) { return n; } start = vi.fn(); onended: any; stop = vi.fn(); loop = false; buffer: any; type = ''; }
 class FakeCtx {
   state = 'suspended'; currentTime = 5; destination = {};
   createGain() { return new FakeNode(); }
@@ -54,7 +55,9 @@ describe('audio', () => {
   });
   it('디코드 실패 시 cur 를 되돌려 다음 호출에서 다시 시도한다(R32)', async () => {
     A.unlock();
+    await new Promise((r) => setTimeout(r, 0)); // 효과음 디코드 5회 끝난 뒤
     const c = A.init() as any;
+    c.decodeAudioData.mockClear();
     c.decodeAudioData.mockRejectedValueOnce(new Error('bad'));
     await expect(A.playBgm(1)).rejects.toThrow('bad');
     expect(made.sources.length).toBe(0);
@@ -69,18 +72,70 @@ describe('audio', () => {
     expect(made.sources.length).toBe(2);
     expect(made.sources[0].stop).toHaveBeenCalledWith(6);
   });
-  it('음소거는 마스터 게인 0, sfx 는 소리를 만들지 않는다', async () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  it('디코드 전 sfx 는 조용히 무시, unlock 후 디코드가 끝나면 재생', async () => {
+    const c = A.init() as any;
+    A.sfx('tap'); // unlock 전
+    expect(made.sources.length).toBe(0);
+    expect(c.decodeAudioData).not.toHaveBeenCalled();
     A.unlock();
+    A.sfx('tap'); // 디코드 중
+    expect(made.sources.length).toBe(0);
+    await flush();
+    expect(c.decodeAudioData).toHaveBeenCalledTimes(5);
+    A.sfx('tap');
+    expect(made.sources.length).toBe(1);
+    expect(made.sources[0].start).toHaveBeenCalled();
+  });
+  it('효과음 디코드는 data: URL 을 fetch 하지 않는다', async () => {
+    const f = vi.fn();
+    (globalThis as any).fetch = f;
+    A.unlock();
+    await flush();
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('음소거는 마스터 게인 0 으로 효과음도 따른다', async () => {
+    A.unlock();
+    await flush();
     A.setMuted(true);
     expect(A.isMuted()).toBe(true);
     const c = A.init() as any;
     expect(c.createGain().gain.value).toBe(1); // 새 노드는 무관
-    A.sfx('tap'); // 예외 없이 무시
     A.setMuted(false);
     expect(A.isMuted()).toBe(false);
   });
+  it('음소거 시 마스터 게인이 0 으로 설정되고 효과음은 마스터를 거친다', async () => {
+    A.unlock();
+    await flush();
+    const c = A.init() as any;
+    const gains: any[] = [];
+    const orig = c.createGain.bind(c);
+    c.createGain = () => { const g = orig(); gains.push(g); return g; };
+    A.setMuted(true);
+    A.sfx('correct');
+    expect(made.sources.length).toBe(1);
+  });
+  it('동시 4개 초과 시 가장 오래된 것을 멈춘다', async () => {
+    A.unlock();
+    await flush();
+    for (let i = 0; i < 6; i++) A.sfx('tap');
+    expect(made.sources.length).toBe(6);
+    expect(made.sources[0].stop).toHaveBeenCalled();
+    expect(made.sources[1].stop).toHaveBeenCalled();
+    expect(made.sources[2].stop).not.toHaveBeenCalled();
+    // 끝난 소리는 슬롯을 비운다
+    made.sources[2].onended();
+    A.sfx('tap');
+    expect(made.sources[3].stop).not.toHaveBeenCalled();
+  });
+  it('save·bleed 도 재생된다', async () => {
+    A.unlock();
+    await flush();
+    A.sfx('save'); A.sfx('bleed');
+    expect(made.sources.length).toBe(2);
+  });
   it('localStorage 에 접근하지 않는다', async () => {
-    A.unlock(); A.setMuted(true); await A.playBgm(3); A.sfx('tap');
+    A.unlock(); A.setMuted(true); await A.playBgm(3); await flush(); A.sfx('tap');
     expect(lsSpy).not.toHaveBeenCalled();
   });
 });

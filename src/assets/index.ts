@@ -84,6 +84,11 @@ import bgm2 from './bgm/bgm-2.ogg';
 import bgm3 from './bgm/bgm-3.ogg';
 import bgm4 from './bgm/bgm-4.ogg';
 import bgm5 from './bgm/bgm-5.ogg';
+import sfx_tap from './sfx/sfx-tap.ogg';
+import sfx_correct from './sfx/sfx-correct.ogg';
+import sfx_wrong from './sfx/sfx-wrong.ogg';
+import sfx_save from './sfx/sfx-save.ogg';
+import sfx_bleed from './sfx/sfx-bleed.ogg';
 
 export const BG: Record<BgId, string> = {
   'title': bg_title,
@@ -165,3 +170,4 @@ export const ICON: Record<string, string> = {
   'stamp-ring': icon_stamp_ring,
 };
 export const BGM: Record<1|2|3|4|5, string> = { 1: bgm1, 2: bgm2, 3: bgm3, 4: bgm4, 5: bgm5 };
+export const SFX: Record<'tap'|'correct'|'wrong'|'save'|'bleed', string> = { tap: sfx_tap, correct: sfx_correct, wrong: sfx_wrong, save: sfx_save, bleed: sfx_bleed };
