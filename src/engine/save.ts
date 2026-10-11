@@ -1,4 +1,5 @@
-import { sceneOrder } from '../content';
+import { CONTENT, sceneOrder } from '../content';
+import { RETRY_KINDS, SCENE_BY_ID } from './state';
 import type { State } from './state';
 
 export const SAVE_KEY = 'dj.save.v1';
@@ -30,6 +31,57 @@ function validJudges(j: unknown): boolean {
       (i.miss === undefined || (Array.isArray(i.miss) && i.miss.every((n) => Number.isInteger(n))))));
 }
 
+// QA r2 #0: 엔진(judge.ts scoreJudge)이 쓰는 문항 id 체계 그대로 — 실재하는 문항만 받는다.
+const J = CONTENT.judges;
+const ITEMS: Record<string, Set<string>> = {
+  poll: new Set(J.poll.spots.map((x) => x.id)),
+  appeal: new Set(['why']),
+  source: new Set(J.source.cards.map((x) => x.id)),
+  pledge: new Set(['vote']),
+  organ: new Set([...J.organ.cards.map((x) => `card:${x.id}`), ...J.organ.checks.map((x) => `check:${x.id}`)]),
+};
+const isItem = (kind: unknown, item: unknown): boolean =>
+  typeof kind === 'string' && typeof item === 'string' && JUDGE_KINDS.includes(kind) && ITEMS[kind].has(item);
+const isChapter = (n: unknown): boolean => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 5;
+const isScene = (v: unknown): boolean => typeof v === 'string' && v in SCENE_BY_ID;
+const optStr = (v: unknown): boolean => v === undefined || typeof v === 'string';
+const isAttempt = (n: unknown): boolean => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 3;
+
+// 재출제 큐: reducer 의 judge 는 틀린 문항을 kind 무관하게 attempts 0 으로 넣고, retry 는 ①~③만 attempts 0→1 로 올린 뒤
+// 맞거나 3회차면 뺀다. 따라서 poll·appeal·source 는 attempts 0~1, pledge·organ 은 0 (다시 보기에서 내지 않음, R29).
+function validRetry(q: unknown): boolean {
+  if (!isObj(q) || !isItem(q.kind, q.item) || !Number.isInteger(q.attempts)) return false;
+  const max = RETRY_KINDS.includes(q.kind as never) ? 1 : 0;
+  return (q.attempts as number) >= 0 && (q.attempts as number) <= max;
+}
+
+// log: reducer 가 type 별로 실제 쓰는 필드만 필수로 본다(과잉 검증 금지).
+function validEvent(e: unknown): boolean {
+  if (!isObj(e) || !Number.isFinite(e.t) || !isChapter(e.chapter)) return false;
+  if (!optStr(e.misconception)) return false;
+  switch (e.type) {
+    case 'chapter_end':
+    case 'restore':
+      return true;
+    case 'scene':
+      return e.scene === undefined || isScene(e.scene);
+    case 'choice':
+      return isScene(e.scene) && typeof e.option === 'string' &&
+        (e.delta === undefined || (isObj(e.delta) && Object.entries(e.delta).every(([k, v]) => ['join', 'info', 'home'].includes(k) && Number.isFinite(v))));
+    case 'culture':
+      return isScene(e.scene) && typeof e.option === 'string' && typeof e.correct === 'boolean';
+    case 'compare_view':
+      return isScene(e.scene) && typeof e.item === 'string';
+    case 'judge':
+    case 'retry':
+      // judge 의 scene 은 원래 판별에만 있고, 다시 보기가 남기는 judge·retry 에는 없다.
+      return isItem(e.kind, e.item) && typeof e.correct === 'boolean' && isAttempt(e.attempt) &&
+        (e.scene === undefined || isScene(e.scene));
+    default:
+      return false;
+  }
+}
+
 function valid(s: unknown): s is State {
   if (!isObj(s) || s.version !== 1) return false;
   if (!Number.isFinite(s.seed)) return false;
@@ -39,8 +91,8 @@ function valid(s: unknown): s is State {
   if (!Array.isArray(s.flags) || !s.flags.every((f) => typeof f === 'string')) return false;
   if (!isObj(s.chosen) || !Object.values(s.chosen).every((v) => typeof v === 'string')) return false;
   if (!validJudges(s.judges)) return false;
-  if (!Array.isArray(s.retryQueue) || !s.retryQueue.every((q) => isObj(q) && typeof q.kind === 'string' && typeof q.item === 'string' && typeof q.attempts === 'number')) return false;
-  if (!Array.isArray(s.log) || !s.log.every((e) => isObj(e) && typeof e.t === 'number' && typeof e.type === 'string' && typeof e.chapter === 'number')) return false;
+  if (!Array.isArray(s.retryQueue) || !s.retryQueue.every(validRetry)) return false;
+  if (!Array.isArray(s.log) || !s.log.every(validEvent)) return false;
   return [0, 1, 2, 3, 4].includes(s.satStep as number);
 }
 

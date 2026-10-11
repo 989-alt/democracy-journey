@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clear, load, save, SAVE_KEY } from './save';
-import { initialState, currentScene } from './state';
+import { initialState, currentScene, retryTargets } from './state';
+import type { Action, JudgeAnswer, State } from './state';
 import { reduce } from './reducer';
+import { CONTENT, sceneOrder } from '../content';
+import type { JudgeKind } from '../content/types';
 
 function fakeStorage() {
   const m = new Map<string, string>();
@@ -80,5 +83,106 @@ describe('save/load', () => {
     expect(() => clear()).not.toThrow();
     vi.unstubAllGlobals();
     expect(load()).toBeNull();
+  });
+});
+
+// QA r2 #0: 실제 리듀서로 완주하며 액션마다 저장 → load 왕복. 오답(①~⑤ 전부 재출제 큐 진입)·오개념 선택·다시 보기 오답→정답·복원 포함.
+const J = CONTENT.judges;
+function wrongAnswer(kind: JudgeKind): JudgeAnswer {
+  switch (kind) {
+    case 'poll': return { kind, tapped: [] };
+    case 'appeal': return { kind, why: J.appeal.why.find((w) => !w.correct)!.id };
+    case 'source': return { kind, cards: {} };
+    case 'pledge': {
+      const [a, b] = J.pledge.candidates;
+      return { kind, scores: Object.fromEntries(J.pledge.candidates.map((c) => [c.id, (c.id === a.id ? [5, 5, 5] : [1, 1, 1]) as [number, number, number]])), vote: b.id };
+    }
+    case 'organ': return { kind, placed: {}, checks: {} };
+  }
+}
+function playAll(onStep: (s: State, a: Action) => void): State {
+  let s = reduce(initialState(3), { type: 'start', seed: 3, t: 0 });
+  let t = 0;
+  const step = (a: Action) => { s = reduce(s, a); onStep(s, a); };
+  for (let i = 0; i < 500 && s.stage === 'play'; i++) {
+    const sc = currentScene(s);
+    if ((sc.kind === 'story' || sc.kind === 'culture') && s.chosen[sc.id] === undefined) {
+      const open = sc.options.filter((o) => !(o.lock && s.stats[o.lock.stat] < o.lock.min));
+      const opt = open.find((o) => o.misconception) ?? open[open.length - 1]; // 오개념 선택지 우선(머묾 경로)
+      step({ type: 'choose', sceneId: sc.id, optionId: opt.id, t: ++t });
+    } else if (sc.kind === 'judge' && !s.judges[sc.judge!]) {
+      step({ type: 'judge', kind: sc.judge!, answer: wrongAnswer(sc.judge!), t: ++t });
+    } else {
+      if (sc.kind === 'retry') {
+        // 첫 다시 보기는 오답(attempts 0→1), 다음은 정답
+        for (const q of retryTargets(s.retryQueue, s.log, sc.chapter)) step({ type: 'retry', kind: q.kind, item: q.item, correct: q.attempts > 0, t: ++t });
+      }
+      if (i === 20) step({ type: 'restore', state: s, t: ++t });
+      step({ type: 'next', t: ++t });
+    }
+  }
+  return s;
+}
+
+describe('load 검증 — 실제 리듀서 저장본은 보존(QA r2 #0 과잉 폐기 방지)', () => {
+  it('완주 중 액션마다 저장본이 load 왕복, 모든 이벤트 type 과 ①~⑤ 재출제 큐를 거친다', () => {
+    const seen = new Set<string>();
+    const kinds = new Set<string>();
+    let maxAttempts = 0;
+    const end = playAll((s) => {
+      save(s);
+      expect(load()).toEqual(s);
+      s.log.forEach((e) => seen.add(e.type));
+      s.retryQueue.forEach((q) => { kinds.add(q.kind); maxAttempts = Math.max(maxAttempts, q.attempts); });
+    });
+    expect(end.stage).toBe('done');
+    for (const ty of ['choice', 'culture', 'judge', 'compare_view', 'chapter_end', 'retry', 'restore']) expect(seen).toContain(ty);
+    for (const k of ['poll', 'appeal', 'source', 'pledge', 'organ']) expect(kinds).toContain(k);
+    expect(maxAttempts).toBe(1);
+  });
+});
+
+describe('load 검증 — log·retryQueue 손상 폐기(QA r2 #0)', () => {
+  const bad = (s: object) => { ls.setItem(SAVE_KEY, JSON.stringify(s)); return load(); };
+  it('Sol 재현 ①: organ judge 이벤트 item 이 숫자', () => {
+    expect(bad({ ...initialState(7), stage: 'done', log: [{ t: 1, type: 'judge', kind: 'organ', chapter: 5, item: 1, correct: false, attempt: 1 }] })).toBeNull();
+  });
+  it('Sol 재현 ②: retryQueue poll item missing', () => {
+    expect(bad({ ...initialState(7), stage: 'play', sceneIndex: sceneOrder.indexOf('c2-s10'), retryQueue: [{ kind: 'poll', item: 'missing', attempts: 0 }] })).toBeNull();
+  });
+  it('retryQueue: 모르는 kind·문항 id 체계 어긋남·attempts 범위·비정수', () => {
+    const s = { ...initialState(7), stage: 'play' };
+    const spot = J.poll.spots[0].id;
+    expect(bad({ ...s, retryQueue: [{ kind: 'poll', item: spot, attempts: 1 }] })).not.toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'organ', item: `card:${J.organ.cards[0].id}`, attempts: 0 }] })).not.toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'bogus', item: spot, attempts: 0 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'appeal', item: spot, attempts: 0 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'organ', item: J.organ.cards[0].id, attempts: 0 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'poll', item: spot, attempts: 2 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'poll', item: spot, attempts: 0.5 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'poll', item: spot, attempts: -1 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [{ kind: 'pledge', item: 'vote', attempts: 1 }] })).toBeNull();
+    expect(bad({ ...s, retryQueue: [null] })).toBeNull();
+  });
+  it('log: type 별 필수 필드·원시 타입', () => {
+    const s = { ...initialState(7), stage: 'play' };
+    const ev = (e: object) => bad({ ...s, log: [e] });
+    expect(ev({ t: 1, type: 'chapter_end', chapter: 1 })).not.toBeNull();
+    expect(ev({ t: 1, type: 'chapter_end', chapter: 9 })).toBeNull();
+    expect(ev({ t: 1, type: 'bogus', chapter: 1 })).toBeNull();
+    expect(ev({ t: 'x', type: 'restore', chapter: 1 })).toBeNull();
+    expect(ev({ t: 1, type: 'choice', chapter: 1, scene: 'c1-s03', option: 'b', delta: { info: -1 } })).not.toBeNull();
+    expect(ev({ t: 1, type: 'choice', chapter: 1, scene: 'c1-s03' })).toBeNull();
+    expect(ev({ t: 1, type: 'choice', chapter: 1, scene: 'nope', option: 'b' })).toBeNull();
+    expect(ev({ t: 1, type: 'choice', chapter: 1, scene: 'c1-s03', option: 'b', delta: { info: 'x' } })).toBeNull();
+    expect(ev({ t: 1, type: 'choice', chapter: 1, scene: 'c1-s03', option: 'b', misconception: 3 })).toBeNull();
+    expect(ev({ t: 1, type: 'culture', chapter: 1, scene: 'c1-s03', option: 'b' })).toBeNull();
+    expect(ev({ t: 1, type: 'compare_view', chapter: 1, scene: 'c1-s03', item: 1 })).toBeNull();
+    expect(ev({ t: 1, type: 'judge', kind: 'appeal', chapter: 2, item: 'why', correct: true, attempt: 2 })).not.toBeNull();
+    expect(ev({ t: 1, type: 'judge', kind: 'appeal', chapter: 2, item: 'why', correct: true, attempt: 4 })).toBeNull();
+    expect(ev({ t: 1, type: 'judge', kind: 'appeal', chapter: 2, item: 'why', correct: 'y', attempt: 1 })).toBeNull();
+    expect(ev({ t: 1, type: 'judge', kind: 'appeal', chapter: 2, item: 'nope', correct: true, attempt: 1 })).toBeNull();
+    expect(ev({ t: 1, type: 'retry', kind: 'poll', chapter: 2, item: J.poll.spots[0].id, correct: false })).toBeNull();
+    expect(ev(null as unknown as object)).toBeNull();
   });
 });
